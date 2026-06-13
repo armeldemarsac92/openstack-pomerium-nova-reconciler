@@ -1,18 +1,26 @@
 openstack:
   cloud: admin
   regions: []
+  sync_statuses:
+    - ACTIVE
+  address_family: ipv4
 
 controller:
   poll_interval_seconds: 15
   dry_run: false
 
 teleport:
+  helper_path: /usr/local/bin/mustelinet-teleport-helper
+  proxy_addr: teleport.example.com:443
+  identity_file: /etc/openstack-teleport-reconciler/teleport-identity
+  oidc_connector_name: authentik
   managed_by: openstack-teleport-reconciler
+  role_name_prefix: mustelinet-project-
   default_logins:
     - ubuntu
-  sync_statuses:
-    - ACTIVE
   delete_stale_nodes: true
+  delete_stale_roles: true
 
 observability:
   log_level: INFO
+  http_addr: 0.0.0.0:8080

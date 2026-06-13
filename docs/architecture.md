@@ -17,9 +17,10 @@ The reconciler watches OpenStack projects and instances, builds the desired
 Teleport inventory and labels, applies changes idempotently, and garbage
 collects resources that no longer exist in OpenStack.
 
-The preferred VM access path is a VM-side Teleport service that joins the
-cluster over outbound connectivity. That preserves the requirement that VMs do
-not expose port 22 publicly and users do not configure bastions or VM IPs.
+The v1 VM access path is Teleport OpenSSH agentless mode. The reconciler
+registers Nova instances as managed OpenSSH node resources in Teleport. VMs do
+not run a Teleport agent, but they must already trust the Teleport OpenSSH CA and
+must be reachable by Teleport Proxy on their selected fixed IP and port 22.
 
 ## Component Responsibilities
 
@@ -56,11 +57,10 @@ Reconciler:
 
 VM bootstrap:
 
-- Installs Teleport SSH service or configures OpenSSH certificate trust.
-- Injects the Teleport SSH CA trust path.
-- Configures node identity, labels, and join configuration from provider-owned
-  metadata.
-- Avoids user-managed `authorized_keys` for platform-managed users.
+- Is out of scope for this reconciler.
+- Must configure OpenSSH to trust the Teleport OpenSSH CA.
+- Must avoid user-managed `authorized_keys` for platform-managed users where the
+  platform owns SSH access policy.
 
 ## Reconciliation Workflow
 
@@ -68,15 +68,17 @@ VM bootstrap:
 2. Fetch enabled Keystone projects.
 3. Fetch Nova instances for configured regions.
 4. Filter instances by supported lifecycle state, normally `ACTIVE`.
-5. Build desired Teleport resources with stable identities:
+5. Build desired Teleport OpenSSH node resources with stable identities:
    `region:openstack_instance_id`.
 6. Add labels such as project id, project name, region, instance id,
    environment, and managed-by marker.
-7. Read current Teleport resources that have the managed-by marker.
-8. Compare desired and current resources by stable identity and fingerprint.
-9. Upsert missing or changed resources.
-10. Delete stale managed resources when stale deletion is enabled.
-11. Emit metrics, logs, and reconciliation summary.
+7. Build desired project admin/member Teleport roles.
+8. Build desired Authentik OIDC connector claims-to-roles mappings.
+9. Read current Teleport resources that have the managed-by marker.
+10. Compare desired and current resources by stable identity and fingerprint.
+11. Upsert missing or changed resources.
+12. Delete stale managed nodes and roles when stale deletion is enabled.
+13. Emit metrics, logs, and reconciliation summary.
 
 The loop is safe to run repeatedly. A future event-driven path can trigger the
 same reconciliation logic from Nova notifications, Keystone project events, or
@@ -107,7 +109,8 @@ SSH authentication:
 Reconciler credentials:
 
 - OpenStack credentials should be read-only for Keystone and Nova inventory.
-- Teleport credentials should be scoped to the resources the reconciler manages.
+- Teleport credentials should be scoped to managed OpenSSH nodes, managed roles,
+  and the configured OIDC connector.
 - All reconciler-managed resources carry a `managed-by` label to prevent
   accidental deletion of manually owned resources.
 
