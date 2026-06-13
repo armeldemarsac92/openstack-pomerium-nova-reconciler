@@ -1,0 +1,18 @@
+openstack:
+  cloud: admin
+  regions: []
+
+controller:
+  poll_interval_seconds: 15
+  dry_run: false
+
+teleport:
+  managed_by: openstack-teleport-reconciler
+  default_logins:
+    - ubuntu
+  sync_statuses:
+    - ACTIVE
+  delete_stale_nodes: true
+
+observability:
+  log_level: INFO
