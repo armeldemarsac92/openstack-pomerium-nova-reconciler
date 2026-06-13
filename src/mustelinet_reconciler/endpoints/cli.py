@@ -15,7 +15,8 @@ from mustelinet_reconciler.domain.models.reconciliation_plan import (
 )
 from mustelinet_reconciler.domain.services.node_builder import TeleportNodeBuilder
 from mustelinet_reconciler.domain.services.reconciliation_planner import ReconciliationPlanner
-from mustelinet_reconciler.endpoints.worker import run_worker
+from mustelinet_reconciler.domain.services.role_builder import TeleportRoleBuilder
+from mustelinet_reconciler.endpoints.worker import RuntimeState, run_worker, start_http_server
 from mustelinet_reconciler.infrastructure.openstack.connection_factory import create_connection
 from mustelinet_reconciler.infrastructure.openstack.keystone_project_repository import (
     KeystoneProjectRepository,
@@ -32,8 +33,8 @@ from mustelinet_reconciler.infrastructure.teleport.json_node_repository import (
     JsonTeleportNodeRepository,
     JsonTeleportRoleRepository,
 )
+from mustelinet_reconciler.infrastructure.teleport.helper_repository import TeleportHelperRepository
 from mustelinet_reconciler.observability.logging_config import configure_logging
-from mustelinet_reconciler.domain.services.role_builder import TeleportRoleBuilder
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -42,30 +43,41 @@ def main(argv: Sequence[str] | None = None) -> int:
     settings = load_settings(args.config)
     configure_logging(settings.observability.log_level)
 
-    dry_run = settings.controller.dry_run or args.dry_run
     service = _build_service(args, settings)
 
-    if args.once:
-        plan = service.reconcile(dry_run=dry_run)
-        _print_plan(plan, output=args.output, dry_run=dry_run)
+    if args.command == "plan":
+        plan = service.plan()
+        _print_plan(plan, output=args.output, applied=False)
         return 0
 
+    if args.command == "reconcile":
+        dry_run = settings.controller.dry_run or args.dry_run
+        plan = service.reconcile(dry_run=dry_run)
+        _print_plan(plan, output=args.output, applied=not dry_run)
+        return 0
+
+    dry_run = settings.controller.dry_run or args.dry_run
+    state = RuntimeState()
+    start_http_server(settings.observability.http_addr, state)
     run_worker(
         service=service,
         poll_interval_seconds=settings.controller.poll_interval_seconds,
         dry_run=dry_run,
+        state=state,
     )
     return 0
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="mustelinet-reconciler")
-    parser.add_argument("--config", type=Path, default=Path("config.yaml"))
-    parser.add_argument("--once", action="store_true", help="Run one reconciliation pass and exit")
-    parser.add_argument("--dry-run", action="store_true", help="Plan without applying changes")
-    parser.add_argument("--snapshot", type=Path, help="JSON OpenStack inventory snapshot")
-    parser.add_argument("--state", type=Path, help="JSON Teleport inventory state file")
-    parser.add_argument("--output", choices=("text", "json"), default="text")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    for command in ("plan", "reconcile", "serve"):
+        subparser = subparsers.add_parser(command)
+        subparser.add_argument("--config", type=Path, default=Path("config.yaml"))
+        subparser.add_argument("--snapshot", type=Path, help="JSON OpenStack inventory snapshot")
+        subparser.add_argument("--state", type=Path, help="JSON Teleport inventory state file")
+        subparser.add_argument("--dry-run", action="store_true", help="Plan without applying changes")
+        subparser.add_argument("--output", choices=("text", "json"), default="text")
     return parser
 
 
@@ -79,23 +91,33 @@ def _build_service(args: argparse.Namespace, settings: Any) -> ReconciliationSer
         instances = SnapshotInstanceRepository(args.snapshot)
 
     if args.state is None:
-        raise SystemExit("--state is required until the production Teleport adapter is configured")
-
-    nodes = JsonTeleportNodeRepository(args.state)
-    roles = JsonTeleportRoleRepository(args.state)
-    oidc = JsonOIDCConnectorRepository(args.state)
+        teleport = TeleportHelperRepository(
+            helper_path=settings.teleport.helper_path,
+            proxy_addr=settings.teleport.proxy_addr,
+            identity_file=settings.teleport.identity_file,
+            managed_by=settings.teleport.managed_by,
+            managed_role_prefix=settings.teleport.role_name_prefix,
+            connector_name=settings.teleport.oidc_connector_name,
+        )
+        nodes = teleport
+        roles = teleport
+        oidc = teleport
+    else:
+        nodes = JsonTeleportNodeRepository(args.state)
+        roles = JsonTeleportRoleRepository(args.state)
+        oidc = JsonOIDCConnectorRepository(args.state)
     node_builder = TeleportNodeBuilder(settings.openstack, settings.teleport)
     role_builder = TeleportRoleBuilder(settings.teleport)
     planner = ReconciliationPlanner(settings.openstack, settings.teleport, node_builder, role_builder)
     return ReconciliationService(projects, instances, nodes, roles, oidc, planner, settings.teleport)
 
 
-def _print_plan(plan: ReconciliationPlan, *, output: str, dry_run: bool) -> None:
+def _print_plan(plan: ReconciliationPlan, *, output: str, applied: bool) -> None:
     if output == "json":
         print(json.dumps(_plan_to_json(plan), indent=2, sort_keys=True))
         return
 
-    verb = "planned" if dry_run else "applied"
+    verb = "applied" if applied else "planned"
     lines = [f"{verb}: {len(plan.actions)} action(s), {len(plan.skipped)} skipped instance(s)"]
     for action in plan.actions:
         identity = action.resource.identity

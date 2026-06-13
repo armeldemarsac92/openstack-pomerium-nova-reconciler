@@ -50,6 +50,7 @@ class ObservabilitySettings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     log_level: str = "INFO"
+    http_addr: str = "0.0.0.0:8080"
 
 
 class Settings(BaseModel):
