@@ -10,8 +10,10 @@ from mustelinet_reconciler.domain.services.reconciliation_planner import Reconci
 from mustelinet_reconciler.domain.services.role_builder import TeleportRoleBuilder
 from mustelinet_reconciler.infrastructure.memory import (
     MemoryInstanceRepository,
+    MemoryOIDCConnectorRepository,
     MemoryProjectRepository,
     MemoryTeleportNodeRepository,
+    MemoryTeleportRoleRepository,
 )
 
 
@@ -20,6 +22,8 @@ class ReconciliationServiceTests(unittest.TestCase):
         settings = TeleportSettings()
         openstack_settings = OpenStackSettings()
         nodes = MemoryTeleportNodeRepository()
+        roles = MemoryTeleportRoleRepository()
+        oidc = MemoryOIDCConnectorRepository()
         service = ReconciliationService(
             projects=MemoryProjectRepository([Project(id="p1", name="otterlab")]),
             instances=MemoryInstanceRepository(
@@ -35,6 +39,8 @@ class ReconciliationServiceTests(unittest.TestCase):
                 ]
             ),
             nodes=nodes,
+            roles=roles,
+            oidc=oidc,
             planner=ReconciliationPlanner(
                 openstack_settings,
                 settings,
@@ -48,6 +54,11 @@ class ReconciliationServiceTests(unittest.TestCase):
 
         self.assertEqual(1, len(plan.node_upserts))
         self.assertIn("par1:vm1", nodes.nodes)
+        self.assertEqual(
+            {"mustelinet-project-otterlab-admin", "mustelinet-project-otterlab-member"},
+            set(roles.roles),
+        )
+        self.assertIsNotNone(oidc.mappings)
 
 
 if __name__ == "__main__":

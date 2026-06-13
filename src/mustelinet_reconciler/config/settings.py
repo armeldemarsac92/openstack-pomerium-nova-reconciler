@@ -40,6 +40,7 @@ class TeleportSettings(BaseModel):
     identity_file: str = ""
     oidc_connector_name: str = "authentik"
     managed_by: str = "openstack-teleport-reconciler"
+    role_name_prefix: str = "mustelinet-project-"
     default_logins: tuple[str, ...] = ("ubuntu",)
     delete_stale_nodes: bool = True
     delete_stale_roles: bool = True

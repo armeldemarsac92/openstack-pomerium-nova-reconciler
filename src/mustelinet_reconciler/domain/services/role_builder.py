@@ -25,14 +25,14 @@ class TeleportRoleBuilder:
                     OIDCMapping(
                         claim="groups",
                         value=project_group_name(project.name, role),
-                        roles=(project_role_name(project.name, role),),
+                        roles=(project_role_name(project.name, role, self.settings.role_name_prefix),),
                     )
                 )
         return OIDCConnectorMappings(self.settings.oidc_connector_name, tuple(mappings))
 
     def _build_role(self, project: Project, role: str) -> ManagedRole:
         return ManagedRole(
-            name=project_role_name(project.name, role),
+            name=project_role_name(project.name, role, self.settings.role_name_prefix),
             project_id=project.id,
             project_name=project.name,
             project_role=role,

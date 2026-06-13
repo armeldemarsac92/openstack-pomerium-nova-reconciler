@@ -14,8 +14,8 @@ def qualified_hostname(instance_name: str, project_name: str, region: str) -> st
     return f"{slugify(instance_name)}--{slugify(project_name)}--{slugify(region)}"
 
 
-def project_role_name(project_name: str, role: str) -> str:
-    return f"mustelinet-project-{slugify(project_name)}-{slugify(role)}"
+def project_role_name(project_name: str, role: str, prefix: str = "mustelinet-project-") -> str:
+    return f"{prefix}{slugify(project_name)}-{slugify(role)}"
 
 
 def project_group_name(project_name: str, role: str) -> str:

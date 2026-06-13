@@ -28,9 +28,12 @@ from mustelinet_reconciler.infrastructure.snapshot import (
     SnapshotProjectRepository,
 )
 from mustelinet_reconciler.infrastructure.teleport.json_node_repository import (
+    JsonOIDCConnectorRepository,
     JsonTeleportNodeRepository,
+    JsonTeleportRoleRepository,
 )
 from mustelinet_reconciler.observability.logging_config import configure_logging
+from mustelinet_reconciler.domain.services.role_builder import TeleportRoleBuilder
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -79,9 +82,12 @@ def _build_service(args: argparse.Namespace, settings: Any) -> ReconciliationSer
         raise SystemExit("--state is required until the production Teleport adapter is configured")
 
     nodes = JsonTeleportNodeRepository(args.state)
-    node_builder = TeleportNodeBuilder(settings.teleport)
-    planner = ReconciliationPlanner(settings.teleport, node_builder)
-    return ReconciliationService(projects, instances, nodes, planner, settings.teleport)
+    roles = JsonTeleportRoleRepository(args.state)
+    oidc = JsonOIDCConnectorRepository(args.state)
+    node_builder = TeleportNodeBuilder(settings.openstack, settings.teleport)
+    role_builder = TeleportRoleBuilder(settings.teleport)
+    planner = ReconciliationPlanner(settings.openstack, settings.teleport, node_builder, role_builder)
+    return ReconciliationService(projects, instances, nodes, roles, oidc, planner, settings.teleport)
 
 
 def _print_plan(plan: ReconciliationPlan, *, output: str, dry_run: bool) -> None:
@@ -92,7 +98,8 @@ def _print_plan(plan: ReconciliationPlan, *, output: str, dry_run: bool) -> None
     verb = "planned" if dry_run else "applied"
     lines = [f"{verb}: {len(plan.actions)} action(s), {len(plan.skipped)} skipped instance(s)"]
     for action in plan.actions:
-        lines.append(f"- {action.kind}: {action.node.identity} {action.node.name} ({action.reason})")
+        identity = action.resource.identity
+        lines.append(f"- {action.kind}: {action.resource_kind} {identity} ({action.reason})")
     for skipped in plan.skipped:
         lines.append(f"- skip: {skipped.instance_id} project={skipped.project_id} ({skipped.reason})")
     print("\n".join(lines))
@@ -106,13 +113,18 @@ def _plan_to_json(plan: ReconciliationPlan) -> dict[str, Any]:
 
 
 def _action_to_json(action: ReconciliationAction) -> dict[str, Any]:
-    node = asdict(action.node)
-    node["labels"] = dict(action.node.labels)
-    node["logins"] = list(action.node.logins)
+    resource = asdict(action.resource)
+    if hasattr(action.resource, "labels"):
+        resource["labels"] = dict(action.resource.labels)
+    if hasattr(action.resource, "node_labels"):
+        resource["node_labels"] = dict(action.resource.node_labels)
+    if hasattr(action.resource, "logins"):
+        resource["logins"] = list(action.resource.logins)
     return {
         "kind": action.kind.value,
+        "resource_kind": action.resource_kind.value,
         "reason": action.reason,
-        "node": node,
+        "resource": resource,
     }
 
 
