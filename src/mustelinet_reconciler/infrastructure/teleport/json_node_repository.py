@@ -49,6 +49,7 @@ class JsonTeleportNodeRepository:
 def _node_from_json(value: dict[str, Any]) -> ManagedNode:
     return ManagedNode(
         name=str(value["name"]),
+        hostname=str(value.get("hostname", value["name"])),
         source_id=str(value["source_id"]),
         project_id=str(value["project_id"]),
         project_name=str(value["project_name"]),
@@ -63,6 +64,7 @@ def _node_from_json(value: dict[str, Any]) -> ManagedNode:
 def _node_to_json(node: ManagedNode) -> dict[str, Any]:
     return {
         "name": node.name,
+        "hostname": node.hostname,
         "source_id": node.source_id,
         "project_id": node.project_id,
         "project_name": node.project_name,

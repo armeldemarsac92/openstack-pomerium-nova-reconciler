@@ -16,6 +16,7 @@ class JsonNodeRepositoryTests(unittest.TestCase):
             repository = JsonTeleportNodeRepository(Path(directory) / "state.json")
             node = ManagedNode(
                 name="web01",
+                hostname="web01",
                 source_id="vm1",
                 project_id="p1",
                 project_name="otterlab",

@@ -15,12 +15,12 @@ class ConfigLoaderTests(unittest.TestCase):
                 """
 openstack:
   cloud: reconciler
+  sync_statuses:
+    - active
 teleport:
   default_logins:
     - ubuntu
     - debian
-  sync_statuses:
-    - active
 """,
                 encoding="utf-8",
             )
@@ -29,7 +29,7 @@ teleport:
 
             self.assertEqual("reconciler", settings.openstack.cloud)
             self.assertEqual(("ubuntu", "debian"), settings.teleport.default_logins)
-            self.assertEqual(("ACTIVE",), settings.teleport.sync_statuses)
+            self.assertEqual(("ACTIVE",), settings.openstack.sync_statuses)
 
 
 if __name__ == "__main__":

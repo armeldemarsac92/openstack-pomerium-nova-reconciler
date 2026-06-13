@@ -8,6 +8,21 @@ class OpenStackSettings(BaseModel):
 
     cloud: str = "admin"
     regions: tuple[str, ...] = ()
+    sync_statuses: tuple[str, ...] = ("ACTIVE",)
+    address_family: str = "ipv4"
+
+    @field_validator("sync_statuses", mode="after")
+    @classmethod
+    def normalize_statuses(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        return tuple(status.upper() for status in value)
+
+    @field_validator("address_family", mode="after")
+    @classmethod
+    def validate_address_family(cls, value: str) -> str:
+        normalized = value.lower()
+        if normalized not in {"ipv4", "ipv6", "any"}:
+            raise ValueError("address_family must be one of: ipv4, ipv6, any")
+        return normalized
 
 
 class ControllerSettings(BaseModel):
@@ -20,15 +35,14 @@ class ControllerSettings(BaseModel):
 class TeleportSettings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
+    helper_path: str = "mustelinet-teleport-helper"
+    proxy_addr: str = ""
+    identity_file: str = ""
+    oidc_connector_name: str = "authentik"
     managed_by: str = "openstack-teleport-reconciler"
     default_logins: tuple[str, ...] = ("ubuntu",)
-    sync_statuses: tuple[str, ...] = ("ACTIVE",)
     delete_stale_nodes: bool = True
-
-    @field_validator("sync_statuses", mode="after")
-    @classmethod
-    def normalize_statuses(cls, value: tuple[str, ...]) -> tuple[str, ...]:
-        return tuple(status.upper() for status in value)
+    delete_stale_roles: bool = True
 
 
 class ObservabilitySettings(BaseModel):

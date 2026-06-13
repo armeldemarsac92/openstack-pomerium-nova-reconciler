@@ -49,10 +49,18 @@ class Instance:
         object.__setattr__(self, "addresses", tuple(self.addresses))
         object.__setattr__(self, "metadata", freeze_mapping(self.metadata))
 
-    def preferred_ssh_address(self) -> str | None:
+    def preferred_ssh_address(self, address_family: str = "ipv4") -> str | None:
         fixed = [address for address in self.addresses if address.is_fixed]
         ipv4 = [address for address in fixed if address.family == 4]
-        selected = ipv4 or fixed or list(self.addresses)
+        ipv6 = [address for address in fixed if address.family == 6]
+
+        if address_family == "ipv4":
+            selected = ipv4
+        elif address_family == "ipv6":
+            selected = ipv6
+        else:
+            selected = ipv4 or ipv6 or fixed or list(self.addresses)
+
         if not selected:
             return None
         return selected[0].address

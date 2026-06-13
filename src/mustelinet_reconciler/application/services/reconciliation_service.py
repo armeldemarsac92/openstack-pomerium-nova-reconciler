@@ -6,7 +6,11 @@ from mustelinet_reconciler.application.ports.instance_repository import Instance
 from mustelinet_reconciler.application.ports.project_repository import ProjectRepository
 from mustelinet_reconciler.application.ports.teleport_node_repository import TeleportNodeRepository
 from mustelinet_reconciler.config.settings import TeleportSettings
-from mustelinet_reconciler.domain.models.reconciliation_plan import ActionKind, ReconciliationPlan
+from mustelinet_reconciler.domain.models.reconciliation_plan import (
+    ActionKind,
+    ReconciliationPlan,
+    ResourceKind,
+)
 from mustelinet_reconciler.domain.services.reconciliation_planner import ReconciliationPlanner
 
 
@@ -31,6 +35,8 @@ class ReconciliationService:
             return plan
 
         for action in plan.actions:
+            if action.resource_kind != ResourceKind.NODE:
+                continue
             if action.kind == ActionKind.UPSERT:
                 self.nodes.upsert_node(action.node)
             elif action.kind == ActionKind.DELETE:
