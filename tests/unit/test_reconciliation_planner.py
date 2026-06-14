@@ -37,7 +37,10 @@ class ReconciliationPlannerTests(unittest.TestCase):
         self.assertEqual("ssh://10.0.0.10:22", route.to_url)
         self.assertEqual("p1", route.labels["mustelinet.io/project-id"])
         self.assertEqual("production", route.labels["openstack.instance-metadata/environment"])
-        self.assertEqual(("openstack:otterlab:admin", "openstack:otterlab:member"), route.allowed_groups)
+        self.assertEqual(
+            ("openstack:otterlab:admin", "openstack:otterlab:member"),
+            route.allowed_groups,
+        )
 
     def test_generates_pomerium_policy_from_project_groups_and_logins(self) -> None:
         plan = _planner().plan(
@@ -160,8 +163,20 @@ class ReconciliationPlannerTests(unittest.TestCase):
             projects=[Project(id="p1", name="otterlab", enabled=False)],
             instances=[
                 Instance(id="vm1", name="web01", project_id="p1", status="ACTIVE", region="par1"),
-                Instance(id="vm2", name="db01", project_id="missing", status="ACTIVE", region="par1"),
-                Instance(id="vm3", name="stopped01", project_id="p1", status="SHUTOFF", region="par1"),
+                Instance(
+                    id="vm2",
+                    name="db01",
+                    project_id="missing",
+                    status="ACTIVE",
+                    region="par1",
+                ),
+                Instance(
+                    id="vm3",
+                    name="stopped01",
+                    project_id="p1",
+                    status="SHUTOFF",
+                    region="par1",
+                ),
             ],
             current_routes=[],
         )

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, cast
 
 from mustelinet_reconciler.domain.models.pomerium import ManagedSSHRoute
 
@@ -37,7 +38,10 @@ class JsonPomeriumRouteRepository:
         if not self._path.exists():
             return {"routes": []}
         with self._path.open("r", encoding="utf-8") as handle:
-            return json.load(handle)
+            loaded = json.load(handle)
+        if not isinstance(loaded, dict):
+            raise ValueError("JSON Pomerium state must be an object")
+        return cast(dict[str, Any], loaded)
 
     def _save(self, state: dict[str, Any]) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)

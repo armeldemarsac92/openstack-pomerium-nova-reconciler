@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 import yaml
 
@@ -17,7 +18,9 @@ class PomeriumConfigRouteRepository:
 
     def list_managed_routes(self, managed_by: str) -> Sequence[ManagedSSHRoute]:
         routes = (_route_from_config(item) for item in self._load_routes())
-        return tuple(route for route in routes if route is not None and route.managed_by == managed_by)
+        return tuple(
+            route for route in routes if route is not None and route.managed_by == managed_by
+        )
 
     def upsert_route(self, route: ManagedSSHRoute) -> None:
         config = self._load()
@@ -118,7 +121,8 @@ def _description_from_route(route: ManagedSSHRoute) -> str:
         "address": route.address,
         "port": route.port,
     }
-    return f"{MANAGED_DESCRIPTION_PREFIX}{json.dumps(metadata, separators=(',', ':'), sort_keys=True)}"
+    payload = json.dumps(metadata, separators=(",", ":"), sort_keys=True)
+    return f"{MANAGED_DESCRIPTION_PREFIX}{payload}"
 
 
 def _metadata_from_description(description: str) -> dict[str, Any] | None:

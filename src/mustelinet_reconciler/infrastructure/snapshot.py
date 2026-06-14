@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, cast
 
 from mustelinet_reconciler.domain.models.openstack import Instance, NetworkAddress, Project
 
@@ -25,7 +26,10 @@ class SnapshotInstanceRepository:
 
 def _load(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
+        loaded = json.load(handle)
+    if not isinstance(loaded, dict):
+        raise ValueError("OpenStack snapshot must be an object")
+    return cast(dict[str, Any], loaded)
 
 
 def _project_from_json(value: dict[str, Any]) -> Project:

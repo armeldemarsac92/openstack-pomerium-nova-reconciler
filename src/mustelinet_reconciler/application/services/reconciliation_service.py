@@ -3,7 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from mustelinet_reconciler.application.ports.instance_repository import InstanceRepository
-from mustelinet_reconciler.application.ports.pomerium_route_repository import PomeriumRouteRepository
+from mustelinet_reconciler.application.ports.pomerium_route_repository import (
+    PomeriumRouteRepository,
+)
 from mustelinet_reconciler.application.ports.project_repository import ProjectRepository
 from mustelinet_reconciler.config.settings import PomeriumSettings
 from mustelinet_reconciler.domain.models.reconciliation_plan import (

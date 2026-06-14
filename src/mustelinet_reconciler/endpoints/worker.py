@@ -136,7 +136,10 @@ def _metrics(snapshot: dict[str, Any]) -> str:
             "# HELP mustelinet_reconciler_ready Reconciler readiness state.",
             "# TYPE mustelinet_reconciler_ready gauge",
             f"mustelinet_reconciler_ready {ready}",
-            "# HELP mustelinet_reconciler_latest_actions Actions planned in the latest reconciliation.",
+            (
+                "# HELP mustelinet_reconciler_latest_actions "
+                "Actions planned in the latest reconciliation."
+            ),
             "# TYPE mustelinet_reconciler_latest_actions gauge",
             f"mustelinet_reconciler_latest_actions {latest['actions']}",
             f"mustelinet_reconciler_latest_upserts {latest['upserts']}",

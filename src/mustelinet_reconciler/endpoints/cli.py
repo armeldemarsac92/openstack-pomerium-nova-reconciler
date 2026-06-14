@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Mapping, Sequence
 from dataclasses import fields
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
+from mustelinet_reconciler.application.ports.instance_repository import InstanceRepository
+from mustelinet_reconciler.application.ports.pomerium_route_repository import (
+    PomeriumRouteRepository,
+)
+from mustelinet_reconciler.application.ports.project_repository import ProjectRepository
 from mustelinet_reconciler.application.services.reconciliation_service import ReconciliationService
 from mustelinet_reconciler.config.loader import load_settings
 from mustelinet_reconciler.domain.models.reconciliation_plan import (
@@ -16,18 +22,18 @@ from mustelinet_reconciler.domain.models.reconciliation_plan import (
 from mustelinet_reconciler.domain.services.reconciliation_planner import ReconciliationPlanner
 from mustelinet_reconciler.domain.services.route_builder import PomeriumRouteBuilder
 from mustelinet_reconciler.endpoints.worker import RuntimeState, run_worker, start_http_server
-from mustelinet_reconciler.infrastructure.pomerium.config_repository import (
-    PomeriumConfigRouteRepository,
-)
-from mustelinet_reconciler.infrastructure.pomerium.json_route_repository import (
-    JsonPomeriumRouteRepository,
-)
 from mustelinet_reconciler.infrastructure.openstack.connection_factory import create_connection
 from mustelinet_reconciler.infrastructure.openstack.keystone_project_repository import (
     KeystoneProjectRepository,
 )
 from mustelinet_reconciler.infrastructure.openstack.nova_instance_repository import (
     NovaInstanceRepository,
+)
+from mustelinet_reconciler.infrastructure.pomerium.config_repository import (
+    PomeriumConfigRouteRepository,
+)
+from mustelinet_reconciler.infrastructure.pomerium.json_route_repository import (
+    JsonPomeriumRouteRepository,
 )
 from mustelinet_reconciler.infrastructure.snapshot import (
     SnapshotInstanceRepository,
@@ -75,7 +81,11 @@ def _build_parser() -> argparse.ArgumentParser:
         subparser.add_argument("--config", type=Path, default=Path("config.yaml"))
         subparser.add_argument("--snapshot", type=Path, help="JSON OpenStack inventory snapshot")
         subparser.add_argument("--state", type=Path, help="JSON Pomerium route state file")
-        subparser.add_argument("--dry-run", action="store_true", help="Plan without applying changes")
+        subparser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Plan without applying changes",
+        )
         subparser.add_argument("--output", choices=("text", "json"), default="text")
     return parser
 
@@ -83,14 +93,19 @@ def _build_parser() -> argparse.ArgumentParser:
 def _build_service(args: argparse.Namespace, settings: Any) -> ReconciliationService:
     if args.snapshot is None:
         connection = create_connection(settings.openstack.cloud)
-        projects = KeystoneProjectRepository(connection)
-        instances = NovaInstanceRepository(connection, settings.openstack.regions)
+        projects: ProjectRepository = KeystoneProjectRepository(connection)
+        instances: InstanceRepository = NovaInstanceRepository(
+            connection,
+            settings.openstack.regions,
+        )
     else:
         projects = SnapshotProjectRepository(args.snapshot)
         instances = SnapshotInstanceRepository(args.snapshot)
 
     if args.state is None:
-        routes = PomeriumConfigRouteRepository(settings.pomerium.config_path)
+        routes: PomeriumRouteRepository = PomeriumConfigRouteRepository(
+            settings.pomerium.config_path
+        )
     else:
         routes = JsonPomeriumRouteRepository(args.state)
     route_builder = PomeriumRouteBuilder(settings.openstack, settings.pomerium)
@@ -109,7 +124,9 @@ def _print_plan(plan: ReconciliationPlan, *, output: str, applied: bool) -> None
         identity = action.resource.identity
         lines.append(f"- {action.kind}: {action.resource_kind} {identity} ({action.reason})")
     for skipped in plan.skipped:
-        lines.append(f"- skip: {skipped.instance_id} project={skipped.project_id} ({skipped.reason})")
+        lines.append(
+            f"- skip: {skipped.instance_id} project={skipped.project_id} ({skipped.reason})"
+        )
     print("\n".join(lines))
 
 

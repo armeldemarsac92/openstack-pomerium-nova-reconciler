@@ -26,7 +26,10 @@ class JsonPomeriumRouteRepositoryTests(unittest.TestCase):
             self.assertEqual(("par1:vm1",), tuple(item.identity for item in routes))
 
             repository.delete_route(route)
-            self.assertEqual((), repository.list_managed_routes("openstack-pomerium-nova-reconciler"))
+            self.assertEqual(
+                (),
+                repository.list_managed_routes("openstack-pomerium-nova-reconciler"),
+            )
 
 
 class PomeriumConfigRouteRepositoryTests(unittest.TestCase):
@@ -54,9 +57,9 @@ class PomeriumConfigRouteRepositoryTests(unittest.TestCase):
 
             config = yaml.safe_load(path.read_text(encoding="utf-8"))
             self.assertEqual(2, len(config["routes"]))
-            managed = [
-                item for item in config["routes"] if item["from"] == "ssh://web01-otterlab"
-            ][0]
+            managed = [item for item in config["routes"] if item["from"] == "ssh://web01-otterlab"][
+                0
+            ]
             self.assertEqual("ssh://10.0.0.10:22", managed["to"])
             self.assertEqual(
                 "openstack:otterlab:member",
@@ -76,7 +79,9 @@ class PomeriumConfigRouteRepositoryTests(unittest.TestCase):
 
             self.assertEqual(
                 ("par1:vm1",),
-                tuple(item.identity for item in repository.list_managed_routes(route.managed_by or "")),
+                tuple(
+                    item.identity for item in repository.list_managed_routes(route.managed_by or "")
+                ),
             )
 
             repository.delete_route(route)

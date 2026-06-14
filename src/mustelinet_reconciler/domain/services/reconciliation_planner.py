@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from mustelinet_reconciler.config.settings import OpenStackSettings, PomeriumSettings
 from mustelinet_reconciler.domain.models.openstack import Instance, Project
+from mustelinet_reconciler.domain.models.pomerium import ManagedSSHRoute
 from mustelinet_reconciler.domain.models.reconciliation_plan import (
     ActionKind,
     ReconciliationAction,
@@ -12,7 +13,6 @@ from mustelinet_reconciler.domain.models.reconciliation_plan import (
     ResourceKind,
     SkippedInstance,
 )
-from mustelinet_reconciler.domain.models.pomerium import ManagedSSHRoute
 from mustelinet_reconciler.domain.services.naming import project_route_name
 from mustelinet_reconciler.domain.services.route_builder import PomeriumRouteBuilder
 
@@ -96,7 +96,9 @@ class ReconciliationPlanner:
                 skipped.append(SkippedInstance(instance.id, instance.project_id, "missing-project"))
                 continue
             if not project.enabled:
-                skipped.append(SkippedInstance(instance.id, instance.project_id, "disabled-project"))
+                skipped.append(
+                    SkippedInstance(instance.id, instance.project_id, "disabled-project")
+                )
                 continue
             if instance.status not in self.openstack_settings.sync_statuses:
                 skipped.append(
@@ -108,7 +110,9 @@ class ReconciliationPlanner:
                 )
                 continue
             if instance.preferred_ssh_address(self.openstack_settings.address_family) is None:
-                skipped.append(SkippedInstance(instance.id, instance.project_id, "missing-ssh-address"))
+                skipped.append(
+                    SkippedInstance(instance.id, instance.project_id, "missing-ssh-address")
+                )
                 continue
             candidates.append((project, instance))
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 from mustelinet_reconciler.domain.models.openstack import Instance, Project
 from mustelinet_reconciler.domain.models.pomerium import ManagedSSHRoute

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 from mustelinet_reconciler.config.settings import OpenStackSettings, PomeriumSettings
 from mustelinet_reconciler.domain.models.openstack import Instance, Project
