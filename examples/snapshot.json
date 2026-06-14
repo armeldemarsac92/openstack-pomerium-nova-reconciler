@@ -1,0 +1,35 @@
+{
+  "projects": [
+    {
+      "id": "project-123",
+      "name": "otterlab",
+      "domain_id": "default",
+      "enabled": true,
+      "metadata": {
+        "environment": "production"
+      }
+    }
+  ],
+  "instances": [
+    {
+      "id": "vm-001",
+      "name": "web01",
+      "project_id": "project-123",
+      "status": "ACTIVE",
+      "region": "mustelinet-par1",
+      "availability_zone": "az1",
+      "addresses": [
+        {
+          "network": "private",
+          "address": "10.42.0.15",
+          "family": 4,
+          "type": "fixed"
+        }
+      ],
+      "metadata": {
+        "environment": "production",
+        "role": "web"
+      }
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+openstack:
+  cloud: admin
+  regions: []
+  sync_statuses:
+    - ACTIVE
+  address_family: ipv4
+
+controller:
+  poll_interval_seconds: 15
+  dry_run: false
+
+pomerium:
+  config_path: /etc/pomerium/config.yaml
+  managed_by: openstack-pomerium-nova-reconciler
+  route_name_prefix: ""
+  group_claim: groups
+  group_value_template: "openstack:{project}:{role}"
+  project_roles:
+    - admin
+    - member
+  forbidden_logins:
+    - root
+  delete_stale_routes: true
+
+observability:
+  log_level: INFO
+  http_addr: 0.0.0.0:8080
