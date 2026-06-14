@@ -24,6 +24,12 @@
           "address": "10.42.0.15",
           "family": 4,
           "type": "fixed"
+        },
+        {
+          "network": "public",
+          "address": "203.0.113.15",
+          "family": 4,
+          "type": "floating"
         }
       ],
       "metadata": {

@@ -30,8 +30,8 @@ class NetworkAddress:
     type: str | None = None
 
     @property
-    def is_fixed(self) -> bool:
-        return self.type in (None, "", "fixed")
+    def is_floating(self) -> bool:
+        return str(self.type or "").strip().lower() == "floating"
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,16 +51,16 @@ class Instance:
         object.__setattr__(self, "metadata", freeze_mapping(self.metadata))
 
     def preferred_ssh_address(self, address_family: str = "ipv4") -> str | None:
-        fixed = [address for address in self.addresses if address.is_fixed]
-        ipv4 = [address for address in fixed if address.family == 4]
-        ipv6 = [address for address in fixed if address.family == 6]
+        floating = [address for address in self.addresses if address.is_floating]
+        ipv4 = [address for address in floating if address.family == 4]
+        ipv6 = [address for address in floating if address.family == 6]
 
         if address_family == "ipv4":
             selected = ipv4
         elif address_family == "ipv6":
             selected = ipv6
         else:
-            selected = ipv4 or ipv6 or fixed or list(self.addresses)
+            selected = ipv4 or ipv6 or floating
 
         if not selected:
             return None

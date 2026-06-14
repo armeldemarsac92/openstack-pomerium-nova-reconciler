@@ -29,7 +29,7 @@ class ReconciliationServiceTests(unittest.TestCase):
                         project_id="p1",
                         status="ACTIVE",
                         region="par1",
-                        addresses=(NetworkAddress("private", "10.0.0.10", 4, "fixed"),),
+                        addresses=(NetworkAddress("public", "203.0.113.10", 4, "floating"),),
                     )
                 ]
             ),
@@ -47,6 +47,7 @@ class ReconciliationServiceTests(unittest.TestCase):
         self.assertEqual(1, len(plan.route_upserts))
         self.assertIn("par1:vm1", routes.routes)
         self.assertEqual("ssh://web01-otterlab", routes.routes["par1:vm1"].from_url)
+        self.assertEqual("203.0.113.10", routes.routes["par1:vm1"].address)
 
 
 if __name__ == "__main__":

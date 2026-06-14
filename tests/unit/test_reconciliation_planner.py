@@ -21,7 +21,10 @@ class ReconciliationPlannerTests(unittest.TestCase):
                     project_id="p1",
                     status="ACTIVE",
                     region="par1",
-                    addresses=(NetworkAddress("private", "10.0.0.10", 4, "fixed"),),
+                    addresses=(
+                        NetworkAddress("private", "10.0.0.10", 4, "fixed"),
+                        NetworkAddress("public", "203.0.113.10", 4, "floating"),
+                    ),
                     metadata={"environment": "production"},
                 )
             ],
@@ -33,8 +36,8 @@ class ReconciliationPlannerTests(unittest.TestCase):
         self.assertEqual("par1:vm1", route.identity)
         self.assertEqual("web01-otterlab", route.route_name)
         self.assertEqual("ssh://web01-otterlab", route.from_url)
-        self.assertEqual("10.0.0.10", route.address)
-        self.assertEqual("ssh://10.0.0.10:22", route.to_url)
+        self.assertEqual("203.0.113.10", route.address)
+        self.assertEqual("ssh://203.0.113.10:22", route.to_url)
         self.assertEqual("p1", route.labels["mustelinet.io/project-id"])
         self.assertEqual("production", route.labels["openstack.instance-metadata/environment"])
         self.assertEqual(
@@ -52,7 +55,7 @@ class ReconciliationPlannerTests(unittest.TestCase):
                     project_id="p1",
                     status="ACTIVE",
                     region="par1",
-                    addresses=(NetworkAddress("private", "10.0.0.10", 4, "fixed"),),
+                    addresses=(NetworkAddress("public", "203.0.113.10", 4, "floating"),),
                 )
             ],
             current_routes=[],
@@ -100,7 +103,7 @@ class ReconciliationPlannerTests(unittest.TestCase):
                     project_id="p1",
                     status="ACTIVE",
                     region="par1",
-                    addresses=(NetworkAddress("private", "10.0.0.10", 4, "fixed"),),
+                    addresses=(NetworkAddress("public", "203.0.113.10", 4, "floating"),),
                 ),
                 Instance(
                     id="vm2",
@@ -108,7 +111,7 @@ class ReconciliationPlannerTests(unittest.TestCase):
                     project_id="p2",
                     status="ACTIVE",
                     region="par1",
-                    addresses=(NetworkAddress("private", "10.0.0.11", 4, "fixed"),),
+                    addresses=(NetworkAddress("public", "203.0.113.11", 4, "floating"),),
                 ),
             ],
             current_routes=[],
@@ -139,7 +142,7 @@ class ReconciliationPlannerTests(unittest.TestCase):
 
         self.assertEqual(0, len(plan.route_deletes))
 
-    def test_skips_active_instances_without_selected_address(self) -> None:
+    def test_skips_active_instances_without_floating_address(self) -> None:
         plan = _planner().plan(
             projects=[Project(id="p1", name="otterlab")],
             instances=[
@@ -149,7 +152,10 @@ class ReconciliationPlannerTests(unittest.TestCase):
                     project_id="p1",
                     status="ACTIVE",
                     region="par1",
-                    addresses=(NetworkAddress("private", "fd00::1", 6, "fixed"),),
+                    addresses=(
+                        NetworkAddress("private-v4", "10.0.0.10", 4, "fixed"),
+                        NetworkAddress("private-v6", "fd00::1", 6, "fixed"),
+                    ),
                 ),
             ],
             current_routes=[],
@@ -157,6 +163,38 @@ class ReconciliationPlannerTests(unittest.TestCase):
 
         self.assertEqual(0, len(plan.route_upserts))
         self.assertEqual(["missing-ssh-address"], [skipped.reason for skipped in plan.skipped])
+
+    def test_selects_floating_ipv6_when_configured(self) -> None:
+        settings = OpenStackSettings(address_family="ipv6")
+        pomerium_settings = PomeriumSettings()
+        planner = ReconciliationPlanner(
+            settings,
+            pomerium_settings,
+            PomeriumRouteBuilder(settings, pomerium_settings),
+        )
+
+        plan = planner.plan(
+            projects=[Project(id="p1", name="otterlab")],
+            instances=[
+                Instance(
+                    id="vm1",
+                    name="web01",
+                    project_id="p1",
+                    status="ACTIVE",
+                    region="par1",
+                    addresses=(
+                        NetworkAddress("private", "10.0.0.10", 4, "fixed"),
+                        NetworkAddress("public-v4", "203.0.113.10", 4, "floating"),
+                        NetworkAddress("public-v6", "2001:db8::10", 6, "floating"),
+                    ),
+                ),
+            ],
+            current_routes=[],
+        )
+
+        route = plan.route_upserts[0].route
+        self.assertEqual("2001:db8::10", route.address)
+        self.assertEqual("ssh://[2001:db8::10]:22", route.to_url)
 
     def test_skips_instances_without_enabled_active_project(self) -> None:
         plan = _planner().plan(
