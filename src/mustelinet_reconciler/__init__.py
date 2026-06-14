@@ -1,4 +1,4 @@
-"""OpenStack to Teleport reconciler for Mustelinet."""
+"""OpenStack to Pomerium SSH route reconciler for Mustelinet."""
 
 __all__ = ["__version__"]
 

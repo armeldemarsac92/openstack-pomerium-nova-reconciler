@@ -1,26 +1,26 @@
-# Mustelinet SSH Access Reconciler Architecture
+# Mustelinet Pomerium SSH Access Reconciler Architecture
 
 ## High-Level Architecture
 
-Mustelinet provides SSH access through Teleport while OpenStack remains the
-source of truth for resources.
+Mustelinet provides SSH access through Pomerium Native SSH while OpenStack
+remains the source of truth for resources.
 
 ```text
 User
-  -> Authentik OIDC
-  -> Teleport login and short-lived SSH certificate
-  -> Teleport proxy
-  -> VM Teleport SSH service or OpenSSH configured with Teleport CA
+  -> SSH to user@route@pomerium
+  -> Pomerium OAuth flow through Authentik
+  -> Pomerium policy check against Authentik claims
+  -> Pomerium-signed SSH certificate
+  -> VM OpenSSH trusting the Pomerium User CA
 ```
 
 The reconciler watches OpenStack projects and instances, builds the desired
-Teleport inventory and labels, applies changes idempotently, and garbage
-collects resources that no longer exist in OpenStack.
+Pomerium `ssh://` route set, applies changes idempotently, and garbage collects
+routes that it owns when the corresponding OpenStack VM disappears.
 
-The v1 VM access path is Teleport OpenSSH agentless mode. The reconciler
-registers Nova instances as managed OpenSSH node resources in Teleport. VMs do
-not run a Teleport agent, but they must already trust the Teleport OpenSSH CA and
-must be reachable by Teleport Proxy on their selected fixed IP and port 22.
+The v1 VM access path is Pomerium Native SSH Access. VMs do not need a Pomerium
+agent, but they must already trust the Pomerium SSH User CA and must be
+reachable by Pomerium on their selected fixed IP and port 22.
 
 ## Component Responsibilities
 
@@ -29,8 +29,8 @@ Authentik:
 - Owns human identities.
 - Emits OIDC claims for email, stable user id, project groups, and project
   roles.
-- Uses group naming that can be mapped deterministically to OpenStack projects,
-  such as `project-otterlab-admin`.
+- Owns project access permissions and emits group claim values such as
+  `openstack:otterlab:member`.
 
 OpenStack:
 
@@ -39,27 +39,27 @@ OpenStack:
 - Injects provider-controlled cloud-init, vendordata, config-drive content, or
   managed image content for VM bootstrap.
 
-Teleport:
+Pomerium:
 
-- Owns login sessions, short-lived SSH certificates, audit events, and access
-  enforcement.
-- Trusts Authentik as OIDC identity provider.
-- Uses roles derived from Authentik groups and resource labels.
+- Owns OAuth session handling, SSH route policy enforcement, SSH certificate
+  signing, and SSH access logs.
+- Trusts Authentik as the identity provider.
+- Evaluates route policy using Authentik claims such as `claim/groups`.
 - Does not own the OpenStack resource catalog.
 
 Reconciler:
 
 - Reads OpenStack projects and instances.
-- Builds desired Teleport node labels and derived access resources.
-- Upserts changed resources.
-- Deletes stale resources that it manages.
+- Builds desired Pomerium SSH route definitions.
+- Upserts changed managed routes into the configured Pomerium YAML config.
+- Deletes stale managed routes when stale deletion is enabled.
 - Emits structured reconciliation results for observability.
 
 VM bootstrap:
 
 - Is out of scope for this reconciler.
-- Must configure OpenSSH to trust the Teleport OpenSSH CA.
-- Must avoid user-managed `authorized_keys` for platform-managed users where the
+- Must configure OpenSSH to trust the Pomerium SSH User CA.
+- Must avoid per-user `authorized_keys` for platform-managed users where the
   platform owns SSH access policy.
 
 ## Reconciliation Workflow
@@ -68,16 +68,17 @@ VM bootstrap:
 2. Fetch enabled Keystone projects.
 3. Fetch Nova instances for configured regions.
 4. Filter instances by supported lifecycle state, normally `ACTIVE`.
-5. Build desired Teleport OpenSSH node resources with stable identities:
+5. Select the preferred fixed SSH address from Nova network data.
+6. Build desired Pomerium SSH routes with stable identities:
    `region:openstack_instance_id`.
-6. Add labels such as project id, project name, region, instance id,
-   environment, and managed-by marker.
-7. Build desired project admin/member Teleport roles.
-8. Build desired Authentik OIDC connector claims-to-roles mappings.
-9. Read current Teleport resources that have the managed-by marker.
-10. Compare desired and current resources by stable identity and fingerprint.
-11. Upsert missing or changed resources.
-12. Delete stale managed nodes and roles when stale deletion is enabled.
+7. Generate `from: ssh://{vm-name}-{project-name}` and
+   `to: ssh://{fixed_ip}:22`.
+8. Generate per-route Pomerium policy from Authentik project group claims and
+   configured Linux login names.
+9. Read current Pomerium routes carrying the reconciler metadata marker.
+10. Compare desired and current routes by stable identity and fingerprint.
+11. Upsert missing or changed routes.
+12. Delete stale managed routes when stale deletion is enabled.
 13. Emit metrics, logs, and reconciliation summary.
 
 The loop is safe to run repeatedly. A future event-driven path can trigger the
@@ -89,34 +90,34 @@ message-bus events. Polling remains the correctness fallback.
 Identity:
 
 - Authentik is the human identity source.
-- Teleport consumes Authentik OIDC claims.
+- Pomerium consumes Authentik OIDC claims.
 - Stable identifiers should use immutable ids, not display names.
 
 Authorization:
 
-- Teleport roles are derived from Authentik groups and OpenStack project
+- Pomerium route policy is derived from Authentik groups and OpenStack project
   membership.
-- Node selectors use reconciler-managed labels.
-- Project admin and member groups should map to different allowed Linux logins,
-  review requirements, or session policies as needed.
+- Authentik group claim values map directly to route allow rules:
+  `claim/groups: openstack:{project_slug}:{role}`.
+- Configured Linux logins are enforced with Pomerium's `ssh_username` criterion.
 
 SSH authentication:
 
-- Users receive short-lived SSH certificates from Teleport.
-- VMs trust the Teleport SSH CA.
+- Pomerium signs short-lived SSH certificates for native SSH access.
+- VMs trust the Pomerium SSH User CA.
 - Platform-managed accounts do not depend on per-user `authorized_keys`.
 
 Reconciler credentials:
 
 - OpenStack credentials should be read-only for Keystone and Nova inventory.
-- Teleport credentials should be scoped to managed OpenSSH nodes, managed roles,
-  and the configured OIDC connector.
-- All reconciler-managed resources carry a `managed-by` label to prevent
-  accidental deletion of manually owned resources.
+- Pomerium config access should be limited to the route configuration file or
+  ConfigMap owned by the operator.
+- Reconciler-managed routes carry a metadata marker in `description` to prevent
+  accidental deletion of manually owned routes.
 
 Audit:
 
-- Teleport records login and session activity.
+- Pomerium records SSH route access and authorization decisions.
 - Reconciler logs each upsert/delete with source id, project id, region, and
   reason.
 - OpenStack remains the audit source for resource lifecycle.
@@ -142,17 +143,20 @@ Instance:
 - `addresses`
 - `metadata`
 
-Managed Teleport node:
+Managed Pomerium SSH route:
 
 - `name`
+- `route_name`
 - `source_id`
 - `project_id`
 - `project_name`
 - `region`
-- `labels`
-- `logins`
+- `group_claim`
+- `allowed_groups`
+- `allowed_logins`
 - `address`
 - `port`
+- `labels`
 
 Stable identity:
 
@@ -160,7 +164,7 @@ Stable identity:
 region:openstack_instance_id
 ```
 
-Required labels:
+Required internal labels:
 
 ```text
 mustelinet.io/managed-by
@@ -173,7 +177,7 @@ mustelinet.io/instance-name
 mustelinet.io/status
 ```
 
-## API Design Proposals
+## API Design
 
 Python ports:
 
@@ -182,10 +186,10 @@ class OpenStackInventory(Protocol):
     def list_projects(self) -> Sequence[Project]: ...
     def list_instances(self) -> Sequence[Instance]: ...
 
-class TeleportInventory(Protocol):
-    def list_managed_nodes(self, managed_by: str) -> Sequence[ManagedNode]: ...
-    def upsert_node(self, node: ManagedNode) -> None: ...
-    def delete_node(self, node: ManagedNode) -> None: ...
+class PomeriumRouteRepository(Protocol):
+    def list_managed_routes(self, managed_by: str) -> Sequence[ManagedSSHRoute]: ...
+    def upsert_route(self, route: ManagedSSHRoute) -> None: ...
+    def delete_route(self, route: ManagedSSHRoute) -> None: ...
 ```
 
 CLI:
@@ -193,16 +197,16 @@ CLI:
 ```bash
 mustelinet-reconciler plan
 mustelinet-reconciler reconcile
+mustelinet-reconciler serve
 ```
 
-Future service API:
+Service API:
 
 ```text
-GET  /healthz
-GET  /readyz
-GET  /metrics
-POST /reconcile
-GET  /reconciliations/latest
+GET /healthz
+GET /readyz
+GET /metrics
+GET /reconciliations/latest
 ```
 
 The public API should expose reconciliation status, not direct mutation of
@@ -212,13 +216,13 @@ OpenStack-derived resources. Mutations should flow through OpenStack.
 
 OpenStack API unavailable:
 
-- Keep existing Teleport resources unchanged.
+- Keep existing Pomerium routes unchanged.
 - Mark reconciliation failed.
 - Retry with backoff.
 
-Teleport API unavailable:
+Pomerium config write unavailable:
 
-- Do not advance local checkpoints.
+- Do not partially rewrite the config.
 - Retry upserts/deletes.
 - Emit degraded status.
 
@@ -229,27 +233,27 @@ Partial apply:
 
 VM bootstrap failure:
 
-- VM appears in OpenStack but does not become reachable through Teleport.
-- Surface as node readiness drift.
+- VM appears in OpenStack but does not become reachable through Pomerium SSH.
+- Surface as route readiness drift in future health checks.
 - Keep OpenStack lifecycle independent from access readiness.
 
 Project rename:
 
 - Stable ids continue to match.
-- Labels update on the next reconciliation.
+- Route policy updates on the next reconciliation.
 - Authentik group naming needs a migration strategy if names are embedded in
   group names.
 
 Compromised VM:
 
-- Disable the OpenStack instance, revoke its Teleport node identity, or rotate
-  join credentials.
-- Teleport session audit remains available.
+- Disable the OpenStack instance, remove the route, or rotate the Pomerium SSH
+  User CA trust according to the incident runbook.
+- Pomerium access audit remains available.
 
 Reconciler bug:
 
-- Managed-by labels constrain deletion scope.
-- Dry-run planning should be available before production apply.
+- Managed metadata constrains deletion scope.
+- Dry-run planning is available before production apply.
 - Stale deletion can be disabled during incident response.
 
 ## Operational Considerations
@@ -260,21 +264,22 @@ Reconciler bug:
   deletes, skipped instances, and failed actions.
 - Include source ids in every log line.
 - Keep delete safeguards enabled by default.
-- Use short Teleport join token lifetimes and rotate CA material through a
-  documented operational runbook.
-- Prefer provider-controlled vendordata or managed images for bootstrap so users
-  do not need to supply cloud-init.
+- Mount the Pomerium config writable only where reconciliation should run.
+- Use Pomerium hot reload or deployment rollout mechanics to pick up changed
+  route config.
+- Prefer provider-controlled vendordata or managed images for VM bootstrap so
+  users do not need to supply cloud-init.
 - Polling is the correctness baseline; events only reduce convergence latency.
 
 ## Future Evolution Roadmap
 
-1. Add production OpenStack adapter using application credentials.
-2. Add production Teleport adapter for the chosen deployment mechanism.
+1. Validate the Pomerium Native SSH bootstrap on managed VM images.
+2. Add Kubernetes ConfigMap adapter for Pomerium deployments in Kubernetes.
 3. Add Prometheus metrics and structured JSON logging.
 4. Add leader election for HA deployments.
 5. Add Nova/Keystone event consumers to trigger faster reconciliations.
-6. Generate or validate Teleport role resources for project groups.
+6. Add optional Pomerium Enterprise API adapter for route CRUD.
 7. Add VM bootstrap templates for vendordata/config-drive/managed images.
 8. Add multi-region inventory aggregation.
 9. Extend the resource model to Kubernetes cluster discovery.
-10. Extend access workflows to databases through Teleport.
+10. Extend access workflows to databases through Pomerium TCP routes.

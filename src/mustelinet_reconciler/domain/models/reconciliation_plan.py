@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from mustelinet_reconciler.domain.models.teleport import ManagedNode, ManagedRole, OIDCConnectorMappings
+from mustelinet_reconciler.domain.models.pomerium import ManagedSSHRoute
 
 
 class ActionKind(StrEnum):
@@ -12,12 +12,10 @@ class ActionKind(StrEnum):
 
 
 class ResourceKind(StrEnum):
-    NODE = "node"
-    ROLE = "role"
-    OIDC_MAPPINGS = "oidc_mappings"
+    SSH_ROUTE = "ssh_route"
 
 
-ManagedResource = ManagedNode | ManagedRole | OIDCConnectorMappings
+ManagedResource = ManagedSSHRoute
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,21 +26,9 @@ class ReconciliationAction:
     reason: str
 
     @property
-    def node(self) -> ManagedNode:
-        if not isinstance(self.resource, ManagedNode):
-            raise TypeError("action resource is not a node")
-        return self.resource
-
-    @property
-    def role(self) -> ManagedRole:
-        if not isinstance(self.resource, ManagedRole):
-            raise TypeError("action resource is not a role")
-        return self.resource
-
-    @property
-    def oidc_mappings(self) -> OIDCConnectorMappings:
-        if not isinstance(self.resource, OIDCConnectorMappings):
-            raise TypeError("action resource is not OIDC mappings")
+    def route(self) -> ManagedSSHRoute:
+        if not isinstance(self.resource, ManagedSSHRoute):
+            raise TypeError("action resource is not an SSH route")
         return self.resource
 
 
@@ -67,35 +53,19 @@ class ReconciliationPlan:
         return tuple(action for action in self.actions if action.kind == ActionKind.DELETE)
 
     @property
-    def node_upserts(self) -> tuple[ReconciliationAction, ...]:
+    def route_upserts(self) -> tuple[ReconciliationAction, ...]:
         return tuple(
             action
             for action in self.actions
-            if action.kind == ActionKind.UPSERT and action.resource_kind == ResourceKind.NODE
+            if action.kind == ActionKind.UPSERT and action.resource_kind == ResourceKind.SSH_ROUTE
         )
 
     @property
-    def node_deletes(self) -> tuple[ReconciliationAction, ...]:
+    def route_deletes(self) -> tuple[ReconciliationAction, ...]:
         return tuple(
             action
             for action in self.actions
-            if action.kind == ActionKind.DELETE and action.resource_kind == ResourceKind.NODE
-        )
-
-    @property
-    def role_upserts(self) -> tuple[ReconciliationAction, ...]:
-        return tuple(
-            action
-            for action in self.actions
-            if action.kind == ActionKind.UPSERT and action.resource_kind == ResourceKind.ROLE
-        )
-
-    @property
-    def role_deletes(self) -> tuple[ReconciliationAction, ...]:
-        return tuple(
-            action
-            for action in self.actions
-            if action.kind == ActionKind.DELETE and action.resource_kind == ResourceKind.ROLE
+            if action.kind == ActionKind.DELETE and action.resource_kind == ResourceKind.SSH_ROUTE
         )
 
     @property

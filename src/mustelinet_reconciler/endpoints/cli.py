@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import asdict
+from dataclasses import fields
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from mustelinet_reconciler.application.services.reconciliation_service import ReconciliationService
 from mustelinet_reconciler.config.loader import load_settings
@@ -13,10 +13,15 @@ from mustelinet_reconciler.domain.models.reconciliation_plan import (
     ReconciliationPlan,
     SkippedInstance,
 )
-from mustelinet_reconciler.domain.services.node_builder import TeleportNodeBuilder
 from mustelinet_reconciler.domain.services.reconciliation_planner import ReconciliationPlanner
-from mustelinet_reconciler.domain.services.role_builder import TeleportRoleBuilder
+from mustelinet_reconciler.domain.services.route_builder import PomeriumRouteBuilder
 from mustelinet_reconciler.endpoints.worker import RuntimeState, run_worker, start_http_server
+from mustelinet_reconciler.infrastructure.pomerium.config_repository import (
+    PomeriumConfigRouteRepository,
+)
+from mustelinet_reconciler.infrastructure.pomerium.json_route_repository import (
+    JsonPomeriumRouteRepository,
+)
 from mustelinet_reconciler.infrastructure.openstack.connection_factory import create_connection
 from mustelinet_reconciler.infrastructure.openstack.keystone_project_repository import (
     KeystoneProjectRepository,
@@ -28,12 +33,6 @@ from mustelinet_reconciler.infrastructure.snapshot import (
     SnapshotInstanceRepository,
     SnapshotProjectRepository,
 )
-from mustelinet_reconciler.infrastructure.teleport.json_node_repository import (
-    JsonOIDCConnectorRepository,
-    JsonTeleportNodeRepository,
-    JsonTeleportRoleRepository,
-)
-from mustelinet_reconciler.infrastructure.teleport.helper_repository import TeleportHelperRepository
 from mustelinet_reconciler.observability.logging_config import configure_logging
 
 
@@ -75,7 +74,7 @@ def _build_parser() -> argparse.ArgumentParser:
         subparser = subparsers.add_parser(command)
         subparser.add_argument("--config", type=Path, default=Path("config.yaml"))
         subparser.add_argument("--snapshot", type=Path, help="JSON OpenStack inventory snapshot")
-        subparser.add_argument("--state", type=Path, help="JSON Teleport inventory state file")
+        subparser.add_argument("--state", type=Path, help="JSON Pomerium route state file")
         subparser.add_argument("--dry-run", action="store_true", help="Plan without applying changes")
         subparser.add_argument("--output", choices=("text", "json"), default="text")
     return parser
@@ -91,25 +90,12 @@ def _build_service(args: argparse.Namespace, settings: Any) -> ReconciliationSer
         instances = SnapshotInstanceRepository(args.snapshot)
 
     if args.state is None:
-        teleport = TeleportHelperRepository(
-            helper_path=settings.teleport.helper_path,
-            proxy_addr=settings.teleport.proxy_addr,
-            identity_file=settings.teleport.identity_file,
-            managed_by=settings.teleport.managed_by,
-            managed_role_prefix=settings.teleport.role_name_prefix,
-            connector_name=settings.teleport.oidc_connector_name,
-        )
-        nodes = teleport
-        roles = teleport
-        oidc = teleport
+        routes = PomeriumConfigRouteRepository(settings.pomerium.config_path)
     else:
-        nodes = JsonTeleportNodeRepository(args.state)
-        roles = JsonTeleportRoleRepository(args.state)
-        oidc = JsonOIDCConnectorRepository(args.state)
-    node_builder = TeleportNodeBuilder(settings.openstack, settings.teleport)
-    role_builder = TeleportRoleBuilder(settings.teleport)
-    planner = ReconciliationPlanner(settings.openstack, settings.teleport, node_builder, role_builder)
-    return ReconciliationService(projects, instances, nodes, roles, oidc, planner, settings.teleport)
+        routes = JsonPomeriumRouteRepository(args.state)
+    route_builder = PomeriumRouteBuilder(settings.openstack, settings.pomerium)
+    planner = ReconciliationPlanner(settings.openstack, settings.pomerium, route_builder)
+    return ReconciliationService(projects, instances, routes, planner, settings.pomerium)
 
 
 def _print_plan(plan: ReconciliationPlan, *, output: str, applied: bool) -> None:
@@ -135,13 +121,16 @@ def _plan_to_json(plan: ReconciliationPlan) -> dict[str, Any]:
 
 
 def _action_to_json(action: ReconciliationAction) -> dict[str, Any]:
-    resource = asdict(action.resource)
-    if hasattr(action.resource, "labels"):
-        resource["labels"] = dict(action.resource.labels)
-    if hasattr(action.resource, "node_labels"):
-        resource["node_labels"] = dict(action.resource.node_labels)
-    if hasattr(action.resource, "logins"):
-        resource["logins"] = list(action.resource.logins)
+    resource = {
+        field.name: _json_value(getattr(action.resource, field.name))
+        for field in fields(action.resource)
+    }
+    if hasattr(action.resource, "from_url"):
+        resource["from_url"] = action.resource.from_url
+    if hasattr(action.resource, "to_url"):
+        resource["to_url"] = action.resource.to_url
+    if hasattr(action.resource, "policy"):
+        resource["policy"] = _json_value(action.resource.policy)
     return {
         "kind": action.kind.value,
         "resource_kind": action.resource_kind.value,
@@ -156,3 +145,13 @@ def _skipped_to_json(skipped: SkippedInstance) -> dict[str, str]:
         "project_id": skipped.project_id,
         "reason": skipped.reason,
     }
+
+
+def _json_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _json_value(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_json_value(item) for item in value]
+    if isinstance(value, list):
+        return [_json_value(item) for item in value]
+    return value

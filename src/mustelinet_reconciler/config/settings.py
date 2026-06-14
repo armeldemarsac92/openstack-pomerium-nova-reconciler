@@ -32,18 +32,50 @@ class ControllerSettings(BaseModel):
     dry_run: bool = False
 
 
-class TeleportSettings(BaseModel):
+class PomeriumSettings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    helper_path: str = "mustelinet-teleport-helper"
-    proxy_addr: str = ""
-    identity_file: str = ""
-    oidc_connector_name: str = "authentik"
-    managed_by: str = "openstack-teleport-reconciler"
-    role_name_prefix: str = "mustelinet-project-"
-    default_logins: tuple[str, ...] = ("ubuntu",)
-    delete_stale_nodes: bool = True
-    delete_stale_roles: bool = True
+    config_path: str = "/etc/pomerium/config.yaml"
+    managed_by: str = "openstack-pomerium-nova-reconciler"
+    route_name_prefix: str = ""
+    group_claim: str = "groups"
+    group_value_template: str = "openstack:{project}:{role}"
+    project_roles: tuple[str, ...] = ("admin", "member")
+    allowed_logins: tuple[str, ...] = ("ubuntu",)
+    delete_stale_routes: bool = True
+
+    @field_validator("project_roles", "allowed_logins", mode="after")
+    @classmethod
+    def normalize_tuple_values(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        return tuple(item.strip().lower() for item in value if item.strip())
+
+    @field_validator("group_claim", mode="after")
+    @classmethod
+    def normalize_group_claim(cls, value: str) -> str:
+        normalized = value.strip().strip("/")
+        if not normalized:
+            raise ValueError("group_claim must not be empty")
+        return normalized
+
+    @field_validator("group_value_template", mode="after")
+    @classmethod
+    def validate_group_value_template(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("group_value_template must not be empty")
+        try:
+            rendered = normalized.format(
+                project="project-name",
+                project_name="Project Name",
+                role="member",
+            )
+        except KeyError as exc:
+            raise ValueError(
+                "group_value_template supports placeholders: project, project_name, role"
+            ) from exc
+        if rendered == normalized:
+            raise ValueError("group_value_template must contain at least one placeholder")
+        return normalized
 
 
 class ObservabilitySettings(BaseModel):
@@ -58,5 +90,5 @@ class Settings(BaseModel):
 
     openstack: OpenStackSettings = Field(default_factory=OpenStackSettings)
     controller: ControllerSettings = Field(default_factory=ControllerSettings)
-    teleport: TeleportSettings = Field(default_factory=TeleportSettings)
+    pomerium: PomeriumSettings = Field(default_factory=PomeriumSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)

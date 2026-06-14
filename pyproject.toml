@@ -3,16 +3,16 @@ requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
-name = "openstack-teleport-reconciler"
+name = "openstack-pomerium-nova-reconciler"
 version = "0.1.0"
-description = "Reconcile OpenStack VM inventory into Teleport SSH access resources for Mustelinet."
+description = "Reconcile OpenStack VM inventory into Pomerium SSH access routes for Mustelinet."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 authors = [
   { name = "Armel De Marsac" },
 ]
-keywords = ["openstack", "teleport", "ssh", "kolla-ansible", "oidc"]
+keywords = ["openstack", "pomerium", "ssh", "kolla-ansible", "oidc"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: System Administrators",

@@ -10,13 +10,17 @@ def slugify(value: str) -> str:
     return slug or "unknown"
 
 
-def qualified_hostname(instance_name: str, project_name: str, region: str) -> str:
-    return f"{slugify(instance_name)}--{slugify(project_name)}--{slugify(region)}"
+def project_route_name(instance_name: str, project_name: str) -> str:
+    return f"{slugify(instance_name)}-{slugify(project_name)}"
 
 
 def project_role_name(project_name: str, role: str, prefix: str = "mustelinet-project-") -> str:
     return f"{prefix}{slugify(project_name)}-{slugify(role)}"
 
 
-def project_group_name(project_name: str, role: str) -> str:
-    return f"project-{slugify(project_name)}-{slugify(role)}"
+def project_group_value(project_name: str, role: str, template: str) -> str:
+    return template.format(
+        project=slugify(project_name),
+        project_name=project_name,
+        role=slugify(role),
+    )

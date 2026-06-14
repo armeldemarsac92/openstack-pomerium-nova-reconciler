@@ -9,17 +9,18 @@ controller:
   poll_interval_seconds: 15
   dry_run: false
 
-teleport:
-  helper_path: /usr/local/bin/mustelinet-teleport-helper
-  proxy_addr: teleport.example.com:443
-  identity_file: /etc/openstack-teleport-reconciler/teleport-identity
-  oidc_connector_name: authentik
-  managed_by: openstack-teleport-reconciler
-  role_name_prefix: mustelinet-project-
-  default_logins:
+pomerium:
+  config_path: /etc/pomerium/config.yaml
+  managed_by: openstack-pomerium-nova-reconciler
+  route_name_prefix: ""
+  group_claim: groups
+  group_value_template: "openstack:{project}:{role}"
+  project_roles:
+    - admin
+    - member
+  allowed_logins:
     - ubuntu
-  delete_stale_nodes: true
-  delete_stale_roles: true
+  delete_stale_routes: true
 
 observability:
   log_level: INFO

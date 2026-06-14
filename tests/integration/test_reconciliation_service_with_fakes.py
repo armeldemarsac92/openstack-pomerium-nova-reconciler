@@ -3,27 +3,22 @@ from __future__ import annotations
 import unittest
 
 from mustelinet_reconciler.application.services.reconciliation_service import ReconciliationService
-from mustelinet_reconciler.config.settings import OpenStackSettings, TeleportSettings
+from mustelinet_reconciler.config.settings import OpenStackSettings, PomeriumSettings
 from mustelinet_reconciler.domain.models.openstack import Instance, NetworkAddress, Project
-from mustelinet_reconciler.domain.services.node_builder import TeleportNodeBuilder
 from mustelinet_reconciler.domain.services.reconciliation_planner import ReconciliationPlanner
-from mustelinet_reconciler.domain.services.role_builder import TeleportRoleBuilder
+from mustelinet_reconciler.domain.services.route_builder import PomeriumRouteBuilder
 from mustelinet_reconciler.infrastructure.memory import (
     MemoryInstanceRepository,
-    MemoryOIDCConnectorRepository,
+    MemoryPomeriumRouteRepository,
     MemoryProjectRepository,
-    MemoryTeleportNodeRepository,
-    MemoryTeleportRoleRepository,
 )
 
 
 class ReconciliationServiceTests(unittest.TestCase):
-    def test_reconcile_applies_upserts(self) -> None:
-        settings = TeleportSettings()
+    def test_reconcile_applies_route_upserts(self) -> None:
+        settings = PomeriumSettings()
         openstack_settings = OpenStackSettings()
-        nodes = MemoryTeleportNodeRepository()
-        roles = MemoryTeleportRoleRepository()
-        oidc = MemoryOIDCConnectorRepository()
+        routes = MemoryPomeriumRouteRepository()
         service = ReconciliationService(
             projects=MemoryProjectRepository([Project(id="p1", name="otterlab")]),
             instances=MemoryInstanceRepository(
@@ -38,27 +33,20 @@ class ReconciliationServiceTests(unittest.TestCase):
                     )
                 ]
             ),
-            nodes=nodes,
-            roles=roles,
-            oidc=oidc,
+            routes=routes,
             planner=ReconciliationPlanner(
                 openstack_settings,
                 settings,
-                TeleportNodeBuilder(openstack_settings, settings),
-                TeleportRoleBuilder(settings),
+                PomeriumRouteBuilder(openstack_settings, settings),
             ),
-            teleport_settings=settings,
+            pomerium_settings=settings,
         )
 
         plan = service.reconcile()
 
-        self.assertEqual(1, len(plan.node_upserts))
-        self.assertIn("par1:vm1", nodes.nodes)
-        self.assertEqual(
-            {"mustelinet-project-otterlab-admin", "mustelinet-project-otterlab-member"},
-            set(roles.roles),
-        )
-        self.assertIsNotNone(oidc.mappings)
+        self.assertEqual(1, len(plan.route_upserts))
+        self.assertIn("par1:vm1", routes.routes)
+        self.assertEqual("ssh://web01-otterlab", routes.routes["par1:vm1"].from_url)
 
 
 if __name__ == "__main__":

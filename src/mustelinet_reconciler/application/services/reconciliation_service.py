@@ -3,11 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from mustelinet_reconciler.application.ports.instance_repository import InstanceRepository
-from mustelinet_reconciler.application.ports.oidc_connector_repository import OIDCConnectorRepository
+from mustelinet_reconciler.application.ports.pomerium_route_repository import PomeriumRouteRepository
 from mustelinet_reconciler.application.ports.project_repository import ProjectRepository
-from mustelinet_reconciler.application.ports.teleport_node_repository import TeleportNodeRepository
-from mustelinet_reconciler.application.ports.teleport_role_repository import TeleportRoleRepository
-from mustelinet_reconciler.config.settings import TeleportSettings
+from mustelinet_reconciler.config.settings import PomeriumSettings
 from mustelinet_reconciler.domain.models.reconciliation_plan import (
     ActionKind,
     ReconciliationPlan,
@@ -20,22 +18,15 @@ from mustelinet_reconciler.domain.services.reconciliation_planner import Reconci
 class ReconciliationService:
     projects: ProjectRepository
     instances: InstanceRepository
-    nodes: TeleportNodeRepository
-    roles: TeleportRoleRepository
-    oidc: OIDCConnectorRepository
+    routes: PomeriumRouteRepository
     planner: ReconciliationPlanner
-    teleport_settings: TeleportSettings
+    pomerium_settings: PomeriumSettings
 
     def plan(self) -> ReconciliationPlan:
         return self.planner.plan(
             projects=self.projects.list_projects(),
             instances=self.instances.list_instances(),
-            current_nodes=self.nodes.list_managed_nodes(self.teleport_settings.managed_by),
-            current_roles=self.roles.list_managed_roles(self.teleport_settings.managed_by),
-            current_oidc_mappings=self.oidc.get_managed_mappings(
-                self.teleport_settings.oidc_connector_name,
-                self.teleport_settings.role_name_prefix,
-            ),
+            current_routes=self.routes.list_managed_routes(self.pomerium_settings.managed_by),
         )
 
     def reconcile(self, *, dry_run: bool = False) -> ReconciliationPlan:
@@ -44,21 +35,10 @@ class ReconciliationService:
             return plan
 
         for action in plan.actions:
-            if action.resource_kind == ResourceKind.NODE:
+            if action.resource_kind == ResourceKind.SSH_ROUTE:
                 if action.kind == ActionKind.UPSERT:
-                    self.nodes.upsert_node(action.node)
+                    self.routes.upsert_route(action.route)
                 elif action.kind == ActionKind.DELETE:
-                    self.nodes.delete_node(action.node)
-            elif action.resource_kind == ResourceKind.ROLE:
-                if action.kind == ActionKind.UPSERT:
-                    self.roles.upsert_role(action.role)
-                elif action.kind == ActionKind.DELETE:
-                    self.roles.delete_role(action.role)
-            elif action.resource_kind == ResourceKind.OIDC_MAPPINGS:
-                if action.kind == ActionKind.UPSERT:
-                    self.oidc.upsert_managed_mappings(
-                        action.oidc_mappings,
-                        self.teleport_settings.role_name_prefix,
-                    )
+                    self.routes.delete_route(action.route)
 
         return plan
