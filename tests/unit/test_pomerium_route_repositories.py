@@ -60,8 +60,9 @@ class PomeriumConfigRouteRepositoryTests(unittest.TestCase):
             self.assertEqual("ssh://10.0.0.10:22", managed["to"])
             self.assertEqual(
                 "openstack:otterlab:member",
-                managed["policy"][0]["allow"]["and"][0]["claim/groups"],
+                managed["policy"][1]["allow"]["and"][0]["claim/groups"],
             )
+            self.assertEqual("root", managed["policy"][0]["deny"]["and"][0]["ssh_username"]["is"])
             self.assertTrue(
                 any(item["from"] == "https://console.example.com" for item in config["routes"])
             )
@@ -93,7 +94,7 @@ def _route() -> ManagedSSHRoute:
         region="par1",
         group_claim="groups",
         allowed_groups=("openstack:otterlab:member",),
-        allowed_logins=("ubuntu",),
+        forbidden_logins=("root",),
         labels={"mustelinet.io/managed-by": "openstack-pomerium-nova-reconciler"},
         address="10.0.0.10",
     )

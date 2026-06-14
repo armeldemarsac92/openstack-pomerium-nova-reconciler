@@ -99,7 +99,8 @@ Authorization:
   membership.
 - Authentik group claim values map directly to route allow rules:
   `claim/groups: openstack:{project_slug}:{role}`.
-- Configured Linux logins are enforced with Pomerium's `ssh_username` criterion.
+- Forbidden Linux logins, such as `root`, are blocked with Pomerium's
+  `ssh_username` criterion.
 
 SSH authentication:
 
@@ -153,7 +154,7 @@ Managed Pomerium SSH route:
 - `region`
 - `group_claim`
 - `allowed_groups`
-- `allowed_logins`
+- `forbidden_logins`
 - `address`
 - `port`
 - `labels`

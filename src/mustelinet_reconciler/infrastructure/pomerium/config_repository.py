@@ -85,7 +85,7 @@ def _route_from_config(value: Mapping[str, Any]) -> ManagedSSHRoute | None:
 
     route_name = _route_name_from_url(str(value.get("from", metadata.get("route_name", ""))))
     address, port = _address_port_from_url(str(value.get("to", "")))
-    group_claim, allowed_groups, allowed_logins = _policy_parts(value.get("policy"))
+    group_claim, allowed_groups, forbidden_logins = _policy_parts(value.get("policy"))
     return ManagedSSHRoute(
         name=str(metadata["name"]),
         route_name=route_name or str(metadata["route_name"]),
@@ -95,7 +95,8 @@ def _route_from_config(value: Mapping[str, Any]) -> ManagedSSHRoute | None:
         region=str(metadata["region"]),
         group_claim=group_claim or str(metadata["group_claim"]),
         allowed_groups=allowed_groups or tuple(str(item) for item in metadata["allowed_groups"]),
-        allowed_logins=allowed_logins or tuple(str(item) for item in metadata["allowed_logins"]),
+        forbidden_logins=forbidden_logins
+        or tuple(str(item) for item in metadata.get("forbidden_logins", [])),
         labels={str(key): str(item) for key, item in metadata.get("labels", {}).items()},
         address=address or metadata.get("address"),
         port=port or int(metadata.get("port", 22)),
@@ -112,7 +113,7 @@ def _description_from_route(route: ManagedSSHRoute) -> str:
         "region": route.region,
         "group_claim": route.group_claim,
         "allowed_groups": list(route.allowed_groups),
-        "allowed_logins": list(route.allowed_logins),
+        "forbidden_logins": list(route.forbidden_logins),
         "labels": dict(route.labels),
         "address": route.address,
         "port": route.port,
@@ -172,15 +173,16 @@ def _policy_parts(value: Any) -> tuple[str | None, tuple[str, ...], tuple[str, .
 
     group_claim: str | None = None
     groups: set[str] = set()
-    logins: set[str] = set()
+    forbidden_logins: set[str] = set()
 
     for rule in value:
         if not isinstance(rule, dict):
             continue
-        allow = rule.get("allow")
-        if not isinstance(allow, dict):
+        action = "deny" if "deny" in rule else "allow"
+        policy_action = rule.get(action)
+        if not isinstance(policy_action, dict):
             continue
-        conditions = allow.get("and", [])
+        conditions = policy_action.get("and", [])
         if not isinstance(conditions, list):
             continue
         for condition in conditions:
@@ -190,13 +192,13 @@ def _policy_parts(value: Any) -> tuple[str | None, tuple[str, ...], tuple[str, .
                 if key.startswith("claim/"):
                     group_claim = key[len("claim/") :]
                     groups.add(str(item))
-                elif key == "ssh_username" and isinstance(item, dict):
+                elif action == "deny" and key == "ssh_username" and isinstance(item, dict):
                     if "is" in item:
-                        logins.add(str(item["is"]))
+                        forbidden_logins.add(str(item["is"]))
                     if isinstance(item.get("in"), list):
-                        logins.update(str(login) for login in item["in"])
+                        forbidden_logins.update(str(login) for login in item["in"])
 
-    return group_claim, tuple(sorted(groups)), tuple(sorted(logins))
+    return group_claim, tuple(sorted(groups)), tuple(sorted(forbidden_logins))
 
 
 def _plain_value(value: Any) -> Any:

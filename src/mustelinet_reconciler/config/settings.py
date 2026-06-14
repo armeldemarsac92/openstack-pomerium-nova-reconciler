@@ -41,10 +41,10 @@ class PomeriumSettings(BaseModel):
     group_claim: str = "groups"
     group_value_template: str = "openstack:{project}:{role}"
     project_roles: tuple[str, ...] = ("admin", "member")
-    allowed_logins: tuple[str, ...] = ("ubuntu",)
+    forbidden_logins: tuple[str, ...] = ("root",)
     delete_stale_routes: bool = True
 
-    @field_validator("project_roles", "allowed_logins", mode="after")
+    @field_validator("project_roles", "forbidden_logins", mode="after")
     @classmethod
     def normalize_tuple_values(cls, value: tuple[str, ...]) -> tuple[str, ...]:
         return tuple(item.strip().lower() for item in value if item.strip())

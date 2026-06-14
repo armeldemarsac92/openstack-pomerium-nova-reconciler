@@ -18,14 +18,15 @@ Pomerium on port 22.
    - Add `pomerium.group_claim`.
    - Add `pomerium.group_value_template`.
    - Add `pomerium.project_roles`.
-   - Add `pomerium.allowed_logins`.
+   - Add `pomerium.forbidden_logins`.
    - Add `pomerium.delete_stale_routes`.
 
 2. Replace domain resources.
    - Add `ManagedSSHRoute`.
    - Generate `from: ssh://{vm-name}-{project-name}`.
    - Generate `to: ssh://{selected_fixed_ip}:22`.
-   - Generate route policy from `claim/{group_claim}` and `ssh_username`.
+   - Generate route policy from `claim/{group_claim}` plus a `deny` rule for
+     forbidden SSH usernames.
    - Preserve stable identity as `region:openstack_instance_id`.
 
 3. Replace planner behavior.
@@ -63,16 +64,16 @@ routes:
   - from: ssh://web01-otterlab
     to: ssh://10.42.0.15:22
     policy:
+      - deny:
+          and:
+            - ssh_username:
+                is: root
       - allow:
           and:
             - claim/groups: openstack:otterlab:admin
-            - ssh_username:
-                is: ubuntu
       - allow:
           and:
             - claim/groups: openstack:otterlab:member
-            - ssh_username:
-                is: ubuntu
 ```
 
 Route names always include the project name after slug normalization:
@@ -84,7 +85,8 @@ Route names always include the project name after slug normalization:
    - Confirm route config is accepted by the running Pomerium version.
    - Confirm Authentik `groups` claim values match
      `openstack:{project}:{role}`.
-   - Confirm `ssh_username` policy matches the desired Linux account model.
+   - Confirm `ssh_username` deny policy blocks root while allowing project users
+     to choose valid non-root Linux accounts.
 
 2. Validate VM bootstrap.
    - Install the Pomerium User CA trust through managed image, vendordata, or

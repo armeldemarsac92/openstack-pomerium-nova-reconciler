@@ -19,9 +19,8 @@ openstack:
     - active
 pomerium:
   group_value_template: "openstack:{project}:{role}"
-  allowed_logins:
-    - ubuntu
-    - debian
+  forbidden_logins:
+    - root
   project_roles:
     - admin
     - member
@@ -33,7 +32,7 @@ pomerium:
 
             self.assertEqual("reconciler", settings.openstack.cloud)
             self.assertEqual("openstack:{project}:{role}", settings.pomerium.group_value_template)
-            self.assertEqual(("ubuntu", "debian"), settings.pomerium.allowed_logins)
+            self.assertEqual(("root",), settings.pomerium.forbidden_logins)
             self.assertEqual(("admin", "member"), settings.pomerium.project_roles)
             self.assertEqual(("ACTIVE",), settings.openstack.sync_statuses)
 

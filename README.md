@@ -73,8 +73,8 @@ pomerium:
   project_roles:
     - admin
     - member
-  allowed_logins:
-    - ubuntu
+  forbidden_logins:
+    - root
   delete_stale_routes: true
 ```
 
@@ -134,16 +134,16 @@ routes:
   - from: ssh://web01-otterlab
     to: ssh://10.42.0.15:22
     policy:
+      - deny:
+          and:
+            - ssh_username:
+                is: root
       - allow:
           and:
             - claim/groups: openstack:otterlab:admin
-            - ssh_username:
-                is: ubuntu
       - allow:
           and:
             - claim/groups: openstack:otterlab:member
-            - ssh_username:
-                is: ubuntu
 ```
 
 Route names always include the project: `{vm-name}-{project-name}` after slug

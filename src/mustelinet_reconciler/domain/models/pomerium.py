@@ -29,7 +29,7 @@ class ManagedSSHRoute:
     region: str
     group_claim: str
     allowed_groups: tuple[str, ...]
-    allowed_logins: tuple[str, ...]
+    forbidden_logins: tuple[str, ...]
     labels: Mapping[str, str] = field(default_factory=dict)
     address: str | None = None
     port: int = 22
@@ -37,7 +37,7 @@ class ManagedSSHRoute:
     def __post_init__(self) -> None:
         object.__setattr__(self, "labels", freeze_mapping(stringify_labels(self.labels)))
         object.__setattr__(self, "allowed_groups", tuple(sorted(set(self.allowed_groups))))
-        object.__setattr__(self, "allowed_logins", tuple(sorted(set(self.allowed_logins))))
+        object.__setattr__(self, "forbidden_logins", tuple(sorted(set(self.forbidden_logins))))
         object.__setattr__(self, "group_claim", self.group_claim.strip().strip("/"))
 
     @property
@@ -64,12 +64,11 @@ class ManagedSSHRoute:
     @property
     def policy(self) -> tuple[Mapping[str, Any], ...]:
         rules: list[Mapping[str, Any]] = []
+        username_condition = self._forbidden_username_condition()
+        if username_condition is not None:
+            rules.append({"deny": {"and": [username_condition]}})
         for group in self.allowed_groups:
-            conditions: list[Mapping[str, Any]] = [{f"claim/{self.group_claim}": group}]
-            username_condition = self._username_condition()
-            if username_condition is not None:
-                conditions.append(username_condition)
-            rules.append({"allow": {"and": conditions}})
+            rules.append({"allow": {"and": [{f"claim/{self.group_claim}": group}]}})
         return tuple(freeze_mapping(rule) for rule in rules)
 
     def fingerprint(self) -> tuple[Any, ...]:
@@ -82,18 +81,18 @@ class ManagedSSHRoute:
             self.region,
             self.group_claim,
             self.allowed_groups,
-            self.allowed_logins,
+            self.forbidden_logins,
             tuple(sorted(self.labels.items())),
             self.address,
             self.port,
         )
 
-    def _username_condition(self) -> Mapping[str, Any] | None:
-        if not self.allowed_logins:
+    def _forbidden_username_condition(self) -> Mapping[str, Any] | None:
+        if not self.forbidden_logins:
             return None
-        if len(self.allowed_logins) == 1:
-            return {"ssh_username": {"is": self.allowed_logins[0]}}
-        return {"ssh_username": {"in": list(self.allowed_logins)}}
+        if len(self.forbidden_logins) == 1:
+            return {"ssh_username": {"is": self.forbidden_logins[0]}}
+        return {"ssh_username": {"in": list(self.forbidden_logins)}}
 
 
 def stable_route_uuid(identity: str) -> str:

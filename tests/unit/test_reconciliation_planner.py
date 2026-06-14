@@ -60,10 +60,16 @@ class ReconciliationPlannerTests(unittest.TestCase):
         self.assertEqual(
             (
                 {
+                    "deny": {
+                        "and": [
+                            {"ssh_username": {"is": "root"}},
+                        ]
+                    }
+                },
+                {
                     "allow": {
                         "and": [
                             {"claim/groups": "openstack:otter-lab:admin"},
-                            {"ssh_username": {"is": "ubuntu"}},
                         ]
                     }
                 },
@@ -71,7 +77,6 @@ class ReconciliationPlannerTests(unittest.TestCase):
                     "allow": {
                         "and": [
                             {"claim/groups": "openstack:otter-lab:member"},
-                            {"ssh_username": {"is": "ubuntu"}},
                         ]
                     }
                 },
@@ -188,7 +193,7 @@ def _route() -> ManagedSSHRoute:
         region="par1",
         group_claim="groups",
         allowed_groups=("openstack:otterlab:member",),
-        allowed_logins=("ubuntu",),
+        forbidden_logins=("root",),
         labels={"mustelinet.io/managed-by": "openstack-pomerium-nova-reconciler"},
         address="10.0.0.10",
     )

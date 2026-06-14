@@ -45,7 +45,7 @@ class PomeriumRouteBuilder:
                 project_group_value(project.name, role, self.pomerium_settings.group_value_template)
                 for role in self.pomerium_settings.project_roles
             ),
-            allowed_logins=self.pomerium_settings.allowed_logins,
+            forbidden_logins=self.pomerium_settings.forbidden_logins,
             labels=labels,
             address=instance.preferred_ssh_address(self.openstack_settings.address_family),
         )

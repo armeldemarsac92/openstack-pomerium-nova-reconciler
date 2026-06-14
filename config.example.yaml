@@ -18,8 +18,8 @@ pomerium:
   project_roles:
     - admin
     - member
-  allowed_logins:
-    - ubuntu
+  forbidden_logins:
+    - root
   delete_stale_routes: true
 
 observability:
