@@ -120,8 +120,11 @@ controller:
 
 pomerium:
   config_path: /etc/pomerium/config.yaml
+  cookie_expire: 24h
   managed_by: openstack-pomerium-nova-reconciler
   route_name_prefix: ""
+  route_timeout: 0s
+  route_idle_timeout: 0s
   group_claim: groups
   group_value_template: "openstack:{project}:{role}"
   project_roles:
@@ -144,6 +147,17 @@ unless policy grants explicit all-project inventory access.
 The production Pomerium adapter edits `pomerium.config_path`. It only manages
 routes whose `description` carries the reconciler metadata marker, preserving
 unmanaged routes in the same file.
+
+Generated SSH routes are long-lived by default:
+
+- `pomerium.route_timeout: 0s` writes `timeout: 0s` on managed SSH routes.
+- `pomerium.route_idle_timeout: 0s` writes `idle_timeout: 0s` on managed SSH
+  routes.
+- `pomerium.cookie_expire: 24h` writes top-level `cookie_expire: 24h` into the
+  Pomerium config when the reconciler applies changes.
+
+Set any of those values to `null` to omit that generated field and keep the
+surrounding Pomerium default or operator-managed value.
 
 ## Running Locally
 
@@ -258,9 +272,12 @@ For an OpenStack VM named `web01` in project `otterlab`, the reconciler
 generates a route shaped like this:
 
 ```yaml
+cookie_expire: 24h
 routes:
   - from: ssh://web01-otterlab
-    to: ssh://10.42.0.15:22
+    to: ssh://203.0.113.15:22
+    timeout: 0s
+    idle_timeout: 0s
     policy:
       - deny:
           and:
@@ -427,6 +444,9 @@ openstack:
   address_family: ipv4
 
 pomerium:
+  cookie_expire: 24h
+  route_timeout: 0s
+  route_idle_timeout: 0s
   group_claim: groups
   group_value_template: "openstack:{project}:{role}"
   project_roles:
@@ -453,7 +473,7 @@ deployment rollout mechanism to apply the changed route set.
 
 VM bootstrap is intentionally out of scope for this reconciler. VMs must already
 run OpenSSH, trust the Pomerium SSH User CA for native SSH access, and be
-reachable by Pomerium on their selected fixed IP and port 22.
+reachable by Pomerium on their selected floating IP and port 22.
 
 See [docs/architecture.md](docs/architecture.md) for the full architecture and
 operational design.

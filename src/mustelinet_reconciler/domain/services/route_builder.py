@@ -46,6 +46,8 @@ class PomeriumRouteBuilder:
                 for role in self.pomerium_settings.project_roles
             ),
             forbidden_logins=self.pomerium_settings.forbidden_logins,
+            timeout=self.pomerium_settings.route_timeout,
+            idle_timeout=self.pomerium_settings.route_idle_timeout,
             labels=labels,
             address=instance.preferred_ssh_address(self.openstack_settings.address_family),
         )

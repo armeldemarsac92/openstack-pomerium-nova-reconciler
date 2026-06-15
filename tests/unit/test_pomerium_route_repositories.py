@@ -51,16 +51,19 @@ class PomeriumConfigRouteRepositoryTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            repository = PomeriumConfigRouteRepository(path)
+            repository = PomeriumConfigRouteRepository(path, cookie_expire="24h")
 
             repository.upsert_route(_route())
 
             config = yaml.safe_load(path.read_text(encoding="utf-8"))
+            self.assertEqual("24h", config["cookie_expire"])
             self.assertEqual(2, len(config["routes"]))
             managed = [item for item in config["routes"] if item["from"] == "ssh://web01-otterlab"][
                 0
             ]
             self.assertEqual("ssh://10.0.0.10:22", managed["to"])
+            self.assertEqual("0s", managed["timeout"])
+            self.assertEqual("0s", managed["idle_timeout"])
             self.assertEqual(
                 "openstack:otterlab:member",
                 managed["policy"][1]["allow"]["and"][0]["claim/groups"],
@@ -83,6 +86,9 @@ class PomeriumConfigRouteRepositoryTests(unittest.TestCase):
                     item.identity for item in repository.list_managed_routes(route.managed_by or "")
                 ),
             )
+            managed = repository.list_managed_routes(route.managed_by or "")[0]
+            self.assertEqual("0s", managed.timeout)
+            self.assertEqual("0s", managed.idle_timeout)
 
             repository.delete_route(route)
 
@@ -100,6 +106,8 @@ def _route() -> ManagedSSHRoute:
         group_claim="groups",
         allowed_groups=("openstack:otterlab:member",),
         forbidden_logins=("root",),
+        timeout="0s",
+        idle_timeout="0s",
         labels={"mustelinet.io/managed-by": "openstack-pomerium-nova-reconciler"},
         address="10.0.0.10",
     )

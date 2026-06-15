@@ -13,8 +13,9 @@ MANAGED_DESCRIPTION_PREFIX = "mustelinet-managed:"
 
 
 class PomeriumConfigRouteRepository:
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, path: str | Path, *, cookie_expire: str | None = None) -> None:
         self._path = Path(path)
+        self._cookie_expire = cookie_expire
 
     def list_managed_routes(self, managed_by: str) -> Sequence[ManagedSSHRoute]:
         routes = (_route_from_config(item) for item in self._load_routes())
@@ -33,6 +34,7 @@ class PomeriumConfigRouteRepository:
         ]
         updated.append(_route_to_config(route))
         config["routes"] = sorted(updated, key=lambda item: str(item.get("from", "")))
+        self._apply_global_settings(config)
         self._save(config)
 
     def delete_route(self, route: ManagedSSHRoute) -> None:
@@ -41,6 +43,7 @@ class PomeriumConfigRouteRepository:
         config["routes"] = [
             current for current in routes if _managed_route_identity(current) != route.identity
         ]
+        self._apply_global_settings(config)
         self._save(config)
 
     def _load_routes(self) -> Sequence[Mapping[str, Any]]:
@@ -65,6 +68,10 @@ class PomeriumConfigRouteRepository:
             yaml.safe_dump(config, handle, sort_keys=False)
         temporary.replace(self._path)
 
+    def _apply_global_settings(self, config: dict[str, Any]) -> None:
+        if self._cookie_expire is not None:
+            config["cookie_expire"] = self._cookie_expire
+
 
 class PomeriumConfigError(RuntimeError):
     pass
@@ -73,12 +80,17 @@ class PomeriumConfigError(RuntimeError):
 def _route_to_config(route: ManagedSSHRoute) -> dict[str, Any]:
     if route.to_url is None:
         raise PomeriumConfigError(f"route {route.identity} has no upstream SSH address")
-    return {
+    config = {
         "from": route.from_url,
         "to": route.to_url,
         "description": _description_from_route(route),
         "policy": _plain_value(route.policy),
     }
+    if route.timeout is not None:
+        config["timeout"] = route.timeout
+    if route.idle_timeout is not None:
+        config["idle_timeout"] = route.idle_timeout
+    return config
 
 
 def _route_from_config(value: Mapping[str, Any]) -> ManagedSSHRoute | None:
@@ -100,6 +112,8 @@ def _route_from_config(value: Mapping[str, Any]) -> ManagedSSHRoute | None:
         allowed_groups=allowed_groups or tuple(str(item) for item in metadata["allowed_groups"]),
         forbidden_logins=forbidden_logins
         or tuple(str(item) for item in metadata.get("forbidden_logins", [])),
+        timeout=_optional_string(value.get("timeout", metadata.get("timeout"))),
+        idle_timeout=_optional_string(value.get("idle_timeout", metadata.get("idle_timeout"))),
         labels={str(key): str(item) for key, item in metadata.get("labels", {}).items()},
         address=address or metadata.get("address"),
         port=port or int(metadata.get("port", 22)),
@@ -117,6 +131,8 @@ def _description_from_route(route: ManagedSSHRoute) -> str:
         "group_claim": route.group_claim,
         "allowed_groups": list(route.allowed_groups),
         "forbidden_logins": list(route.forbidden_logins),
+        "timeout": route.timeout,
+        "idle_timeout": route.idle_timeout,
         "labels": dict(route.labels),
         "address": route.address,
         "port": route.port,
@@ -153,6 +169,15 @@ def _route_name_from_url(value: str) -> str:
     if value.startswith("ssh://"):
         return value[len("ssh://") :].split("/", 1)[0]
     return value
+
+
+def _optional_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    return text
 
 
 def _address_port_from_url(value: str) -> tuple[str | None, int | None]:

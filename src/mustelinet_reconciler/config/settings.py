@@ -36,8 +36,11 @@ class PomeriumSettings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     config_path: str = "/etc/pomerium/config.yaml"
+    cookie_expire: str | None = "24h"
     managed_by: str = "openstack-pomerium-nova-reconciler"
     route_name_prefix: str = ""
+    route_timeout: str | None = "0s"
+    route_idle_timeout: str | None = "0s"
     group_claim: str = "groups"
     group_value_template: str = "openstack:{project}:{role}"
     project_roles: tuple[str, ...] = ("admin", "member")
@@ -48,6 +51,16 @@ class PomeriumSettings(BaseModel):
     @classmethod
     def normalize_tuple_values(cls, value: tuple[str, ...]) -> tuple[str, ...]:
         return tuple(item.strip().lower() for item in value if item.strip())
+
+    @field_validator("cookie_expire", "route_timeout", "route_idle_timeout", mode="after")
+    @classmethod
+    def normalize_duration(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        return normalized
 
     @field_validator("group_claim", mode="after")
     @classmethod

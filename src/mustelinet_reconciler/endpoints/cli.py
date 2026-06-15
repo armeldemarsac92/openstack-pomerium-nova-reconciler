@@ -104,7 +104,8 @@ def _build_service(args: argparse.Namespace, settings: Any) -> ReconciliationSer
 
     if args.state is None:
         routes: PomeriumRouteRepository = PomeriumConfigRouteRepository(
-            settings.pomerium.config_path
+            settings.pomerium.config_path,
+            cookie_expire=settings.pomerium.cookie_expire,
         )
     else:
         routes = JsonPomeriumRouteRepository(args.state)

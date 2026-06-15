@@ -63,6 +63,8 @@ def _route_from_json(value: dict[str, Any]) -> ManagedSSHRoute:
         group_claim=str(value.get("group_claim", "groups")),
         allowed_groups=tuple(str(item) for item in value.get("allowed_groups", [])),
         forbidden_logins=tuple(str(item) for item in value.get("forbidden_logins", [])),
+        timeout=_optional_string(value.get("timeout")),
+        idle_timeout=_optional_string(value.get("idle_timeout")),
         labels={str(key): str(item) for key, item in value.get("labels", {}).items()},
         address=value.get("address"),
         port=int(value.get("port", 22)),
@@ -80,7 +82,18 @@ def _route_to_json(route: ManagedSSHRoute) -> dict[str, Any]:
         "group_claim": route.group_claim,
         "allowed_groups": list(route.allowed_groups),
         "forbidden_logins": list(route.forbidden_logins),
+        "timeout": route.timeout,
+        "idle_timeout": route.idle_timeout,
         "labels": dict(route.labels),
         "address": route.address,
         "port": route.port,
     }
+
+
+def _optional_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    return text

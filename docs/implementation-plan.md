@@ -20,11 +20,15 @@ Pomerium on port 22.
    - Add `pomerium.project_roles`.
    - Add `pomerium.forbidden_logins`.
    - Add `pomerium.delete_stale_routes`.
+   - Add `pomerium.cookie_expire`.
+   - Add `pomerium.route_timeout`.
+   - Add `pomerium.route_idle_timeout`.
 
 2. Replace domain resources.
    - Add `ManagedSSHRoute`.
    - Generate `from: ssh://{vm-name}-{project-name}`.
-   - Generate `to: ssh://{selected_fixed_ip}:22`.
+   - Generate `to: ssh://{selected_floating_ip}:22`.
+   - Generate long-lived route `timeout` and `idle_timeout` fields.
    - Generate route policy from `claim/{group_claim}` plus a `deny` rule for
      forbidden SSH usernames.
    - Preserve stable identity as `region:openstack_instance_id`.

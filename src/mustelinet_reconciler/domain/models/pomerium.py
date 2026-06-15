@@ -31,6 +31,8 @@ class ManagedSSHRoute:
     group_claim: str
     allowed_groups: tuple[str, ...]
     forbidden_logins: tuple[str, ...]
+    timeout: str | None = None
+    idle_timeout: str | None = None
     labels: Mapping[str, str] = field(default_factory=dict)
     address: str | None = None
     port: int = 22
@@ -40,6 +42,8 @@ class ManagedSSHRoute:
         object.__setattr__(self, "allowed_groups", tuple(sorted(set(self.allowed_groups))))
         object.__setattr__(self, "forbidden_logins", tuple(sorted(set(self.forbidden_logins))))
         object.__setattr__(self, "group_claim", self.group_claim.strip().strip("/"))
+        object.__setattr__(self, "timeout", _clean_optional_duration(self.timeout))
+        object.__setattr__(self, "idle_timeout", _clean_optional_duration(self.idle_timeout))
 
     @property
     def identity(self) -> str:
@@ -83,6 +87,8 @@ class ManagedSSHRoute:
             self.group_claim,
             self.allowed_groups,
             self.forbidden_logins,
+            self.timeout,
+            self.idle_timeout,
             tuple(sorted(self.labels.items())),
             self.address,
             self.port,
@@ -98,3 +104,12 @@ class ManagedSSHRoute:
 
 def stable_route_uuid(identity: str) -> str:
     return str(uuid5(NAMESPACE_URL, f"mustelinet:openstack:pomerium-ssh:{identity}"))
+
+
+def _clean_optional_duration(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+    return normalized

@@ -11,8 +11,11 @@ controller:
 
 pomerium:
   config_path: /etc/pomerium/config.yaml
+  cookie_expire: 24h
   managed_by: openstack-pomerium-nova-reconciler
   route_name_prefix: ""
+  route_timeout: 0s
+  route_idle_timeout: 0s
   group_claim: groups
   group_value_template: "openstack:{project}:{role}"
   project_roles:

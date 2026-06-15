@@ -18,6 +18,9 @@ openstack:
   sync_statuses:
     - active
 pomerium:
+  cookie_expire: 12h
+  route_timeout: 0s
+  route_idle_timeout: 0s
   group_value_template: "openstack:{project}:{role}"
   forbidden_logins:
     - root
@@ -31,6 +34,9 @@ pomerium:
             settings = load_settings(path)
 
             self.assertEqual("reconciler", settings.openstack.cloud)
+            self.assertEqual("12h", settings.pomerium.cookie_expire)
+            self.assertEqual("0s", settings.pomerium.route_timeout)
+            self.assertEqual("0s", settings.pomerium.route_idle_timeout)
             self.assertEqual("openstack:{project}:{role}", settings.pomerium.group_value_template)
             self.assertEqual(("root",), settings.pomerium.forbidden_logins)
             self.assertEqual(("admin", "member"), settings.pomerium.project_roles)

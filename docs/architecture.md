@@ -20,7 +20,7 @@ routes that it owns when the corresponding OpenStack VM disappears.
 
 The v1 VM access path is Pomerium Native SSH Access. VMs do not need a Pomerium
 agent, but they must already trust the Pomerium SSH User CA and must be
-reachable by Pomerium on their selected fixed IP and port 22.
+reachable by Pomerium on their selected floating IP and port 22.
 
 ## Component Responsibilities
 
@@ -68,11 +68,11 @@ VM bootstrap:
 2. Fetch enabled Keystone projects.
 3. Fetch Nova instances for configured regions.
 4. Filter instances by supported lifecycle state, normally `ACTIVE`.
-5. Select the preferred fixed SSH address from Nova network data.
+5. Select the preferred floating SSH address from Nova network data.
 6. Build desired Pomerium SSH routes with stable identities:
    `region:openstack_instance_id`.
 7. Generate `from: ssh://{vm-name}-{project-name}` and
-   `to: ssh://{fixed_ip}:22`.
+   `to: ssh://{floating_ip}:22`.
 8. Generate per-route Pomerium policy from Authentik project group claims and
    configured Linux login names.
 9. Read current Pomerium routes carrying the reconciler metadata marker.
